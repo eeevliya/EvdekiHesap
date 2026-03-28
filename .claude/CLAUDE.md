@@ -57,6 +57,7 @@ These rules apply in every session without exception.
 4. **No surprise dependencies.** Before installing any new package, state what it is and why it's needed. Wait for approval.
 5. **No speculative work.** Do not implement things that aren't in the current slice, even if they seem related.
 6. **No refactoring previous slices** unless it is directly blocking the current slice. Flag it if you see it; fix it only with PM approval.
+7. **English only.** Do not use Turkish for any UI text, labels, error messages, or placeholders. English only for MVP.
 
 ---
 

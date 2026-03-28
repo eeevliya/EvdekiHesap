@@ -22,9 +22,9 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl">Hesap oluştur</CardTitle>
+          <CardTitle className="text-2xl">Create an account</CardTitle>
           <CardDescription>
-            Aile portföyünüzü takip etmek için kayıt olun
+            Sign up to start tracking your household portfolio
           </CardDescription>
         </CardHeader>
         <form action={action}>
@@ -33,29 +33,29 @@ export default function RegisterPage() {
               <p className="text-sm text-destructive">{state.error}</p>
             )}
             <div className="space-y-2">
-              <Label htmlFor="displayName">Ad Soyad</Label>
+              <Label htmlFor="displayName">Full name</Label>
               <Input
                 id="displayName"
                 name="displayName"
                 type="text"
-                placeholder="Ahmet Yılmaz"
+                placeholder="Jane Smith"
                 required
                 autoComplete="name"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">E-posta</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 name="email"
                 type="email"
-                placeholder="ornek@email.com"
+                placeholder="you@example.com"
                 required
                 autoComplete="email"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Şifre</Label>
+              <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 name="password"
@@ -68,15 +68,15 @@ export default function RegisterPage() {
           </CardContent>
           <CardFooter className="flex flex-col space-y-3">
             <Button type="submit" className="w-full" disabled={pending}>
-              {pending ? 'Kaydediliyor…' : 'Kayıt ol'}
+              {pending ? 'Creating account…' : 'Create account'}
             </Button>
             <p className="text-sm text-muted-foreground text-center">
-              Zaten hesabınız var mı?{' '}
+              Already have an account?{' '}
               <Link
                 href="/login"
                 className="text-primary underline-offset-4 hover:underline"
               >
-                Giriş yap
+                Sign in
               </Link>
             </p>
           </CardFooter>

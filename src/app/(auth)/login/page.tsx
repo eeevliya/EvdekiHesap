@@ -22,9 +22,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl">Giriş yap</CardTitle>
+          <CardTitle className="text-2xl">Sign in</CardTitle>
           <CardDescription>
-            E-posta ve şifrenizle hesabınıza giriş yapın
+            Enter your email and password to access your account
           </CardDescription>
         </CardHeader>
         <form action={action}>
@@ -33,18 +33,18 @@ export default function LoginPage() {
               <p className="text-sm text-destructive">{state.error}</p>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email">E-posta</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 name="email"
                 type="email"
-                placeholder="ornek@email.com"
+                placeholder="you@example.com"
                 required
                 autoComplete="email"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Şifre</Label>
+              <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 name="password"
@@ -56,15 +56,15 @@ export default function LoginPage() {
           </CardContent>
           <CardFooter className="flex flex-col space-y-3">
             <Button type="submit" className="w-full" disabled={pending}>
-              {pending ? 'Giriş yapılıyor…' : 'Giriş yap'}
+              {pending ? 'Signing in…' : 'Sign in'}
             </Button>
             <p className="text-sm text-muted-foreground text-center">
-              Hesabınız yok mu?{' '}
+              Don&apos;t have an account?{' '}
               <Link
                 href="/register"
                 className="text-primary underline-offset-4 hover:underline"
               >
-                Kayıt ol
+                Register
               </Link>
             </p>
           </CardFooter>

@@ -15,15 +15,15 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-semibold">Dashboard</h1>
           <form action={signOut}>
             <Button variant="outline" size="sm" type="submit">
-              Çıkış yap
+              Sign out
             </Button>
           </form>
         </div>
         <p className="text-muted-foreground">
-          Giriş yapıldı: <span className="font-mono text-sm">{user?.email}</span>
+          Signed in as: <span className="font-mono text-sm">{user?.email}</span>
         </p>
         <p className="text-muted-foreground text-sm">
-          Dashboard — Slice 2+ ile doldurulacak.
+          Dashboard — to be filled in from Slice 2 onwards.
         </p>
       </div>
     </div>

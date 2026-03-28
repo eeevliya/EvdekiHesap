@@ -25,7 +25,7 @@ export default async function OnboardingPage() {
     redirect('/login')
   }
 
-  // If the user somehow already has a household, skip onboarding
+  // If the user already has a household, skip onboarding
   const { data: membership } = await supabase
     .from('household_members')
     .select('household_id')
@@ -41,14 +41,14 @@ export default async function OnboardingPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl">Hanenizi oluşturun</CardTitle>
+          <CardTitle className="text-2xl">Create your household</CardTitle>
           <CardDescription>
-            EvdekiHesap'a hoş geldiniz. Başlamak için bir hane adı belirleyin.
+            Welcome to EvdekiHesap. Set up your household to get started.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Hane oluşturma formu Slice 1b ile eklenecek.
+            Household creation form — coming in Slice 1b.
           </p>
         </CardContent>
       </Card>

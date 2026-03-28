@@ -6,6 +6,8 @@ A mobile-first investment portfolio tracker for private households. Tracks multi
 
 Full product requirements: `PRD.md`. Read it before planning or implementing anything.
 
+Technical plan (stable slice contract): `.claude/TECHNICAL_PLAN.md`.
+
 ---
 
 ## Tech Stack
@@ -69,9 +71,9 @@ Different symbol types (Tefas funds, BIST stocks, crypto, physical gold, fiat FX
 
 ## Slice Contract
 
-The slice contract (shared types, API shapes, database schema) is defined in `TECHNICAL_PLAN.md`. It is a **stable contract document** — not a progress tracker. Treat it like the PRD: read it for reference, do not modify it unless the PM explicitly approves a replanning decision due to a requirements change or an architectural impasse.
+The slice contract (shared types, API shapes, database schema) is defined in `.claude/TECHNICAL_PLAN.md`. It is a **stable contract document** — not a progress tracker. Treat it like the PRD: read it for reference, do not modify it unless the PM explicitly approves a replanning decision due to a requirements change or an architectural impasse.
 
-**Do not modify `TECHNICAL_PLAN.md` without PM approval**, even if a change seems minor. Cross-slice breakage is the primary risk in this project.
+**Do not modify `.claude/TECHNICAL_PLAN.md` without PM approval**, even if a change seems minor. Cross-slice breakage is the primary risk in this project.
 
 ---
 
@@ -97,5 +99,6 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 |---|---|
 | Last completed slice | Slice 1b — Household Management |
 | Next slice | Slice 2 — Symbols, Accounts & Assets |
-| Known issues | TECHNICAL_PLAN §5 `createHousehold` lists `displayName` as second param — this appears to be a typo for `displayCurrency`. Implemented as `displayCurrency`. PM should confirm or update the plan. |
+| Known issues | TECHNICAL_PLAN §5 `createHousehold` lists `displayName` as second param — typo for `displayCurrency`. Implemented as `displayCurrency`. PM to confirm. |
+| Technical plan | `.claude/TECHNICAL_PLAN.md` (moved from repo root) |
 | Technical plan approved | Yes (v1.1, 2026-03-28) |

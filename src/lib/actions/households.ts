@@ -76,8 +76,6 @@ export async function createInvite(
   householdId: string,
   input: {
     role: 'editor' | 'viewer'
-    expiresAt?: string
-    maxUses?: number
   }
 ): Promise<ActionResult<HouseholdInvite>> {
   const { supabase, user } = await getSessionUser()
@@ -96,6 +94,8 @@ export async function createInvite(
 
   const code = randomBytes(16).toString('hex')
 
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString() // 1 hour from now
+
   const { data: invite, error } = await supabase
     .from('household_invites')
     .insert({
@@ -103,8 +103,8 @@ export async function createInvite(
       code,
       role: input.role,
       created_by: user.id,
-      expires_at: input.expiresAt ?? null,
-      max_uses: input.maxUses ?? null,
+      expires_at: expiresAt,
+      max_uses: null,
     })
     .select()
     .single()
@@ -164,7 +164,12 @@ export async function acceptInvite(code: string): Promise<ActionResult<{ househo
   const { supabase, user } = await getSessionUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
-  const { data: invite } = await supabase
+  // Use service role for the invite lookup: the RLS SELECT policy on household_invites
+  // only allows existing members to read rows — a user accepting a new invite is not
+  // yet a member, so the regular client returns null even for a valid invite.
+  const serviceClient = createServiceRoleClient()
+
+  const { data: invite } = await serviceClient
     .from('household_invites')
     .select('*')
     .eq('code', code)
@@ -195,12 +200,7 @@ export async function acceptInvite(code: string): Promise<ActionResult<{ househo
     redirect('/dashboard')
   }
 
-  // Use service role for the INSERT and UPDATE:
-  // 1. household_members INSERT policy requires the caller to already be a manager —
-  //    impossible for a new member joining via invite
-  // 2. household_invites has no UPDATE policy, so use_count increment would be blocked
-  const serviceClient = createServiceRoleClient()
-
+  // serviceClient already declared above — reuse it for the INSERT and UPDATE
   const { error: memberError } = await serviceClient.from('household_members').insert({
     household_id: invite.household_id,
     user_id: user.id,

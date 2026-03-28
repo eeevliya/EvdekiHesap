@@ -21,12 +21,9 @@ export default async function MembersSettingsPage() {
 
   if (!myMembership) redirect('/onboarding')
 
-  const { householdId, role: myRole } = {
-    householdId: myMembership.household_id,
-    role: myMembership.role as 'manager' | 'editor' | 'viewer',
-  }
+  const householdId = myMembership.household_id
+  const myRole = myMembership.role as 'manager' | 'editor' | 'viewer'
 
-  // Fetch all members with their profile info
   const { data: membersRaw } = await supabase
     .from('household_members')
     .select('id, user_id, role, joined_at, profiles(display_name, email)')
@@ -48,26 +45,6 @@ export default async function MembersSettingsPage() {
         : '',
   }))
 
-  // Fetch active invites (only visible to managers, but page is accessible to all members)
-  const { data: invitesRaw } =
-    myRole === 'manager'
-      ? await supabase
-          .from('household_invites')
-          .select('id, code, role, expires_at, max_uses, use_count, created_at')
-          .eq('household_id', householdId)
-          .order('created_at', { ascending: false })
-      : { data: [] }
-
-  const invites = (invitesRaw ?? []).map((inv) => ({
-    id: inv.id,
-    code: inv.code,
-    role: inv.role as 'editor' | 'viewer',
-    expiresAt: inv.expires_at,
-    maxUses: inv.max_uses,
-    useCount: inv.use_count,
-    createdAt: inv.created_at,
-  }))
-
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-6">
       <div>
@@ -80,7 +57,6 @@ export default async function MembersSettingsPage() {
         isManager={myRole === 'manager'}
         householdId={householdId}
         members={members}
-        invites={invites}
       />
     </div>
   )

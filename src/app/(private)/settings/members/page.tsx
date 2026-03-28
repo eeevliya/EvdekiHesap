@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { MembersManager } from './members-manager'
 
 export default async function MembersSettingsPage() {
@@ -24,7 +24,10 @@ export default async function MembersSettingsPage() {
   const householdId = myMembership.household_id
   const myRole = myMembership.role as 'manager' | 'editor' | 'viewer'
 
-  const { data: membersRaw } = await supabase
+  // Use service role: profiles RLS only allows users to SELECT their own row,
+  // so the join returns null for all other members under the session client.
+  const serviceClient = createServiceRoleClient()
+  const { data: membersRaw } = await serviceClient
     .from('household_members')
     .select('id, user_id, role, joined_at, profiles(display_name, email)')
     .eq('household_id', householdId)

@@ -74,13 +74,27 @@ The slice contract (shared types, API shapes, database schema) is defined in `TE
 
 ---
 
+## Infrastructure
+
+| Resource | Value |
+|---|---|
+| Supabase project | `EvdekiHesap` — ref `mhibzdfazufxhikqiabg` — region `eu-central-1` |
+| Supabase URL | `https://mhibzdfazufxhikqiabg.supabase.co` |
+| Vercel project | `evdeki-hesap` — linked to GitHub repo `eeevliya/EvdekiHesap` |
+| Supabase CLI | Installed via Scoop; run `supabase login` if session expires |
+
+### Environment variables
+All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) are set in Vercel for Production, Preview, and Development. Local `.env.local` also contains `SUPABASE_DB_PASSWORD` for running migrations via CLI.
+
+---
+
 ## Current State
 
 > **This is the only section updated regularly. Update it at the end of every session.**
 
 | Field | Value |
 |---|---|
-| Last completed slice | — |
+| Last completed slice | Pre-flight setup (infrastructure only, no app code yet) |
 | Next slice | Slice 1a — Project Scaffold + Auth |
 | Known issues | — |
 | Technical plan approved | Yes (v1.1, 2026-03-28) |

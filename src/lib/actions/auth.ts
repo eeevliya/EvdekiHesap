@@ -1,7 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server'
 import type { DisplayCurrency } from '@/lib/types/domain'
 
 export async function signIn(
@@ -96,7 +96,13 @@ export async function createHousehold(
 
   if (!user) return { error: 'Not authenticated' }
 
-  const { data: household, error: householdError } = await supabase
+  // Use service role for the two INSERT operations:
+  // 1. households has no INSERT policy (new household has no members yet to check against)
+  // 2. household_members INSERT policy requires the caller to already be a manager —
+  //    impossible when bootstrapping the first membership row
+  const serviceClient = createServiceRoleClient()
+
+  const { data: household, error: householdError } = await serviceClient
     .from('households')
     .insert({ name: householdName.trim(), display_currency: displayCurrency })
     .select('id')
@@ -106,14 +112,14 @@ export async function createHousehold(
     return { error: householdError?.message ?? 'Failed to create household' }
   }
 
-  const { error: memberError } = await supabase.from('household_members').insert({
+  const { error: memberError } = await serviceClient.from('household_members').insert({
     household_id: household.id,
     user_id: user.id,
     role: 'manager',
   })
 
   if (memberError) {
-    await supabase.from('households').delete().eq('id', household.id)
+    await serviceClient.from('households').delete().eq('id', household.id)
     return { error: memberError.message }
   }
 

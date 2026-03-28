@@ -3,7 +3,7 @@
 import { randomBytes } from 'crypto'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server'
 import type { ActionResult, DisplayCurrency, HouseholdInvite, Role } from '@/lib/types/domain'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -195,8 +195,13 @@ export async function acceptInvite(code: string): Promise<ActionResult<{ househo
     redirect('/dashboard')
   }
 
-  // Insert member
-  const { error: memberError } = await supabase.from('household_members').insert({
+  // Use service role for the INSERT and UPDATE:
+  // 1. household_members INSERT policy requires the caller to already be a manager —
+  //    impossible for a new member joining via invite
+  // 2. household_invites has no UPDATE policy, so use_count increment would be blocked
+  const serviceClient = createServiceRoleClient()
+
+  const { error: memberError } = await serviceClient.from('household_members').insert({
     household_id: invite.household_id,
     user_id: user.id,
     role: invite.role,
@@ -205,7 +210,7 @@ export async function acceptInvite(code: string): Promise<ActionResult<{ househo
   if (memberError) return { success: false, error: memberError.message }
 
   // Increment use_count
-  await supabase
+  await serviceClient
     .from('household_invites')
     .update({ use_count: invite.use_count + 1 })
     .eq('id', invite.id)

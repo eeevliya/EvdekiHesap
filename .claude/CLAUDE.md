@@ -99,6 +99,6 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 |---|---|
 | Last completed slice | Slice 1b — Household Management |
 | Next slice | Slice 2 — Symbols, Accounts & Assets |
-| Known issues | TECHNICAL_PLAN §5 `createHousehold` lists `displayName` as second param — typo for `displayCurrency`. Implemented as `displayCurrency`. PM to confirm. |
+| Known issues | None |
 | Technical plan | `.claude/TECHNICAL_PLAN.md` (moved from repo root) |
 | Technical plan approved | Yes (v1.1, 2026-03-28) |

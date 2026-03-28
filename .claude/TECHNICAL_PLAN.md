@@ -770,7 +770,7 @@ All mutations are Server Actions. These signatures define the stable API contrac
 ### auth.ts
 
 ```typescript
-createHousehold(input: { householdName: string; displayName: string }): Promise<ActionResult<{ householdId: string }>>
+createHousehold(input: { householdName: string; displayCurrency: DisplayCurrency }): Promise<ActionResult<{ householdId: string }>>
 ```
 
 ### households.ts

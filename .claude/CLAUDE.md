@@ -94,7 +94,7 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 | Field | Value |
 |---|---|
-| Last completed slice | Pre-flight setup (infrastructure only, no app code yet) |
-| Next slice | Slice 1a — Project Scaffold + Auth |
-| Known issues | — |
+| Last completed slice | Slice 1a — Project Scaffold + Auth |
+| Next slice | Slice 1b — Household Management |
+| Known issues | Next.js 16 renamed `middleware.ts` → `proxy.ts` (exported fn must be named `proxy`). Applied. |
 | Technical plan approved | Yes (v1.1, 2026-03-28) |

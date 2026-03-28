@@ -1,41 +1,21 @@
-import { redirect } from 'next/navigation'
-import { createServerClient } from '@/lib/supabase/server'
+'use client'
+
+import { useActionState } from 'react'
+import { createHousehold } from '@/lib/actions/auth'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
-/**
- * Onboarding page — shown after registration when the user has no household.
- * Lives outside the (private) route group so the private layout's
- * household-redirect logic does not apply here.
- *
- * The household creation form is implemented in Slice 1b.
- */
-export default async function OnboardingPage() {
-  const supabase = await createServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/login')
-  }
-
-  // If the user already has a household, skip onboarding
-  const { data: membership } = await supabase
-    .from('household_members')
-    .select('household_id')
-    .eq('user_id', user.id)
-    .limit(1)
-    .maybeSingle()
-
-  if (membership) {
-    redirect('/dashboard')
-  }
+export default function OnboardingPage() {
+  const [state, action, isPending] = useActionState(createHousehold, null)
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -43,13 +23,44 @@ export default async function OnboardingPage() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl">Create your household</CardTitle>
           <CardDescription>
-            Welcome to EvdekiHesap. Set up your household to get started.
+            Welcome to EvdekiHesap. Set up your household to start tracking your portfolio.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Household creation form — coming in Slice 1b.
-          </p>
+          <form action={action} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="householdName">Household name</Label>
+              <Input
+                id="householdName"
+                name="householdName"
+                placeholder="e.g. Smith Family"
+                required
+                disabled={isPending}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="displayCurrency">Display currency</Label>
+              <Select name="displayCurrency" defaultValue="TRY" disabled={isPending}>
+                <SelectTrigger id="displayCurrency">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TRY">TRY — Turkish Lira</SelectItem>
+                  <SelectItem value="USD">USD — US Dollar</SelectItem>
+                  <SelectItem value="EUR">EUR — Euro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {state?.error && (
+              <p className="text-sm text-destructive">{state.error}</p>
+            )}
+
+            <Button type="submit" className="w-full" disabled={isPending}>
+              {isPending ? 'Creating…' : 'Create household'}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>

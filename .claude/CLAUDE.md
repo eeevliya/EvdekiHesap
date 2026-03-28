@@ -95,7 +95,7 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 | Field | Value |
 |---|---|
-| Last completed slice | Slice 1a — Project Scaffold + Auth |
-| Next slice | Slice 1b — Household Management |
-| Known issues | Next.js 16 renamed `middleware.ts` → `proxy.ts` (exported fn must be named `proxy`). Applied. |
+| Last completed slice | Slice 1b — Household Management |
+| Next slice | Slice 2 — Symbols, Accounts & Assets |
+| Known issues | TECHNICAL_PLAN §5 `createHousehold` lists `displayName` as second param — this appears to be a typo for `displayCurrency`. Implemented as `displayCurrency`. PM should confirm or update the plan. |
 | Technical plan approved | Yes (v1.1, 2026-03-28) |

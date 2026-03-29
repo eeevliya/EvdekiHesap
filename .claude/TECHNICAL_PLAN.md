@@ -306,7 +306,8 @@ create table transactions (
   date           timestamptz not null default now(),
   to_asset_id    uuid references assets(id),
   from_asset_id  uuid references assets(id),
-  fee_asset_id   uuid references assets(id),
+  fee_side       text check (fee_side in ('to', 'from')),  -- which asset bears the fee (derived from to/from asset)
+  entry_mode     text check (entry_mode in ('both_amounts', 'to_amount_and_rate', 'from_amount_and_rate')),
   to_amount      numeric check (to_amount > 0),
   from_amount    numeric check (from_amount > 0),
   fee_amount     numeric check (fee_amount >= 0),
@@ -322,7 +323,7 @@ create table transactions (
   constraint chk_interest check (type != 'interest' or (to_asset_id is not null and to_amount is not null and from_asset_id is null and from_amount is null)),
   constraint chk_transfer check (type != 'transfer' or (to_asset_id is not null and from_asset_id is not null and to_amount is not null and from_amount is not null)),
   constraint chk_trade    check (type != 'trade'    or (to_asset_id is not null and from_asset_id is not null and to_amount is not null and from_amount is not null and exchange_rate is not null)),
-  constraint chk_fee      check (fee_amount is null or fee_asset_id is not null)
+  constraint chk_fee      check (fee_amount is null or fee_side is not null)
 );
 
 create index transactions_household_date_idx on transactions (household_id, date desc);
@@ -370,10 +371,11 @@ create table snapshot_assets (
 All transaction mutations (create, update, delete) must go through these PostgreSQL functions called via Supabase RPC. This guarantees that the transaction record and every affected asset's `amount` are modified in a single atomic database operation. **Server Actions must never issue sequential separate queries for this; they must call these RPCs.**
 
 ```sql
--- 00013_transaction_rpc.sql
+-- 00013_transactions.sql + 00014_fee_side_entry_mode.sql (applied together)
 
 -- ── apply_transaction ───────────────────────────────────────────────────────
 -- Inserts a transaction and atomically adjusts asset amounts.
+-- Fee asset is always derived from fee_side + to/from asset id (no separate fee_asset_id).
 -- Returns the new transaction's id.
 create or replace function apply_transaction(
   p_household_id  uuid,
@@ -381,129 +383,128 @@ create or replace function apply_transaction(
   p_date          timestamptz,
   p_to_asset_id   uuid,
   p_from_asset_id uuid,
-  p_fee_asset_id  uuid,
+  p_fee_side      text,          -- 'to', 'from', or null
   p_to_amount     numeric,
   p_from_amount   numeric,
   p_fee_amount    numeric,
   p_exchange_rate numeric,
+  p_entry_mode    text,
   p_notes         text,
   p_created_by    uuid
-) returns uuid language plpgsql security definer as $$
-declare
-  v_id uuid;
+) returns uuid language plpgsql security definer
+set search_path = public as $$
+declare v_id uuid;
 begin
   insert into transactions (
     household_id, type, date,
-    to_asset_id, from_asset_id, fee_asset_id,
-    to_amount, from_amount, fee_amount,
-    exchange_rate, notes, created_by
+    to_asset_id, from_asset_id, fee_side, fee_amount,
+    to_amount, from_amount, exchange_rate, entry_mode, notes, created_by
   ) values (
     p_household_id, p_type, p_date,
-    p_to_asset_id, p_from_asset_id, p_fee_asset_id,
-    p_to_amount, p_from_amount, p_fee_amount,
-    p_exchange_rate, p_notes, p_created_by
+    p_to_asset_id, p_from_asset_id, p_fee_side, p_fee_amount,
+    p_to_amount, p_from_amount, p_exchange_rate, p_entry_mode, p_notes, p_created_by
   ) returning id into v_id;
 
-  if p_to_asset_id   is not null and p_to_amount   is not null then
-    update assets set amount = amount + p_to_amount,   updated_at = now() where id = p_to_asset_id;
+  -- to_asset: gains to_amount, minus fee if fee_side = 'to'
+  if p_to_asset_id is not null and p_to_amount is not null then
+    if p_fee_side = 'to' and p_fee_amount is not null and p_fee_amount > 0 then
+      update assets set amount = amount + p_to_amount - p_fee_amount, updated_at = now() where id = p_to_asset_id;
+    else
+      update assets set amount = amount + p_to_amount, updated_at = now() where id = p_to_asset_id;
+    end if;
   end if;
+
+  -- from_asset: loses from_amount, plus fee if fee_side = 'from'
   if p_from_asset_id is not null and p_from_amount is not null then
-    update assets set amount = amount - p_from_amount, updated_at = now() where id = p_from_asset_id;
-  end if;
-  if p_fee_asset_id  is not null and p_fee_amount  is not null and p_fee_amount > 0 then
-    update assets set amount = amount - p_fee_amount,  updated_at = now() where id = p_fee_asset_id;
+    if p_fee_side = 'from' and p_fee_amount is not null and p_fee_amount > 0 then
+      update assets set amount = amount - p_from_amount - p_fee_amount, updated_at = now() where id = p_from_asset_id;
+    else
+      update assets set amount = amount - p_from_amount, updated_at = now() where id = p_from_asset_id;
+    end if;
   end if;
 
   return v_id;
-end;
-$$;
+end; $$;
 
 -- ── reverse_and_delete_transaction ─────────────────────────────────────────
--- Reverses all asset amount changes from a transaction then deletes it.
+-- Net-delta per unique asset — no intermediate state, no ordering issue.
 create or replace function reverse_and_delete_transaction(
   p_transaction_id uuid
-) returns void language plpgsql security definer as $$
-declare
-  t transactions%rowtype;
+) returns void language plpgsql security definer
+set search_path = public as $$
+declare t transactions%rowtype;
 begin
   select * into t from transactions where id = p_transaction_id;
   if not found then raise exception 'transaction not found'; end if;
 
-  if t.to_asset_id   is not null and t.to_amount   is not null then
-    update assets set amount = amount - t.to_amount,   updated_at = now() where id = t.to_asset_id;
+  if t.to_asset_id is not null and t.to_amount is not null then
+    if t.fee_side = 'to' and t.fee_amount is not null and t.fee_amount > 0 then
+      update assets set amount = amount - t.to_amount + t.fee_amount, updated_at = now() where id = t.to_asset_id;
+    else
+      update assets set amount = amount - t.to_amount, updated_at = now() where id = t.to_asset_id;
+    end if;
   end if;
+
   if t.from_asset_id is not null and t.from_amount is not null then
-    update assets set amount = amount + t.from_amount, updated_at = now() where id = t.from_asset_id;
-  end if;
-  if t.fee_asset_id  is not null and t.fee_amount  is not null and t.fee_amount > 0 then
-    update assets set amount = amount + t.fee_amount,  updated_at = now() where id = t.fee_asset_id;
+    if t.fee_side = 'from' and t.fee_amount is not null and t.fee_amount > 0 then
+      update assets set amount = amount + t.from_amount + t.fee_amount, updated_at = now() where id = t.from_asset_id;
+    else
+      update assets set amount = amount + t.from_amount, updated_at = now() where id = t.from_asset_id;
+    end if;
   end if;
 
   delete from transactions where id = p_transaction_id;
-end;
-$$;
+end; $$;
 
 -- ── update_transaction ──────────────────────────────────────────────────────
--- Reverses old asset changes, applies new values, updates the transaction row.
--- Only amount/fee/exchange_rate/notes/date fields are mutable post-creation.
---
--- Edge case (handle in Slice 3): if p_fee_asset_id differs from t.fee_asset_id,
--- the old fee asset must be restored using t.fee_asset_id BEFORE deducting the
--- new fee from p_fee_asset_id. The implementation below handles this correctly
--- because the reverse step uses t.fee_asset_id and the apply step uses
--- p_fee_asset_id — they are intentionally different variables. Slice 3
--- implementation must NOT collapse these into one variable.
+-- Single-pass net-delta per unique asset. fee_side and entry_mode are immutable.
+-- Delta formulas:
+--   to_asset:   (p_to_amount - t.to_amount) + if fee_side='to': (t.fee_amount - p_fee_amount)
+--   from_asset: (t.from_amount - p_from_amount) + if fee_side='from': (t.fee_amount - p_fee_amount)
 create or replace function update_transaction(
   p_transaction_id uuid,
   p_date           timestamptz,
   p_to_amount      numeric,
   p_from_amount    numeric,
-  p_fee_asset_id   uuid,
   p_fee_amount     numeric,
   p_exchange_rate  numeric,
   p_notes          text
-) returns void language plpgsql security definer as $$
+) returns void language plpgsql security definer
+set search_path = public as $$
 declare
-  t transactions%rowtype;
+  t            transactions%rowtype;
+  v_to_delta   numeric;
+  v_from_delta numeric;
 begin
   select * into t from transactions where id = p_transaction_id;
   if not found then raise exception 'transaction not found'; end if;
 
-  -- Reverse old asset impacts
-  if t.to_asset_id   is not null and t.to_amount   is not null then
-    update assets set amount = amount - t.to_amount,   updated_at = now() where id = t.to_asset_id;
-  end if;
-  if t.from_asset_id is not null and t.from_amount is not null then
-    update assets set amount = amount + t.from_amount, updated_at = now() where id = t.from_asset_id;
-  end if;
-  if t.fee_asset_id  is not null and t.fee_amount  is not null and t.fee_amount > 0 then
-    update assets set amount = amount + t.fee_amount,  updated_at = now() where id = t.fee_asset_id;
+  if t.to_asset_id is not null then
+    v_to_delta := coalesce(p_to_amount, 0) - coalesce(t.to_amount, 0);
+    if t.fee_side = 'to' then
+      v_to_delta := v_to_delta + coalesce(t.fee_amount, 0) - coalesce(p_fee_amount, 0);
+    end if;
+    update assets set amount = amount + v_to_delta, updated_at = now() where id = t.to_asset_id;
   end if;
 
-  -- Apply new asset impacts (to_asset_id and from_asset_id cannot change)
-  if t.to_asset_id   is not null and p_to_amount   is not null then
-    update assets set amount = amount + p_to_amount,   updated_at = now() where id = t.to_asset_id;
-  end if;
-  if t.from_asset_id is not null and p_from_amount is not null then
-    update assets set amount = amount - p_from_amount, updated_at = now() where id = t.from_asset_id;
-  end if;
-  if p_fee_asset_id  is not null and p_fee_amount  is not null and p_fee_amount > 0 then
-    update assets set amount = amount - p_fee_amount,  updated_at = now() where id = p_fee_asset_id;
+  if t.from_asset_id is not null then
+    v_from_delta := coalesce(t.from_amount, 0) - coalesce(p_from_amount, 0);
+    if t.fee_side = 'from' then
+      v_from_delta := v_from_delta + coalesce(t.fee_amount, 0) - coalesce(p_fee_amount, 0);
+    end if;
+    update assets set amount = amount + v_from_delta, updated_at = now() where id = t.from_asset_id;
   end if;
 
-  -- Update the transaction record
   update transactions set
     date          = p_date,
     to_amount     = p_to_amount,
     from_amount   = p_from_amount,
-    fee_asset_id  = p_fee_asset_id,
     fee_amount    = p_fee_amount,
     exchange_rate = p_exchange_rate,
     notes         = p_notes,
     updated_at    = now()
   where id = p_transaction_id;
-end;
-$$;
+end; $$;
 ```
 
 ---
@@ -582,6 +583,10 @@ export type DisplayCurrency = 'TRY' | 'USD' | 'EUR';
 export type PriceFetchStatus = 'success' | 'error' | 'skipped';
 
 export type SnapshotTrigger = 'scheduled' | 'manual';
+
+export type FeeSide = 'to' | 'from';
+
+export type EntryMode = 'both_amounts' | 'to_amount_and_rate' | 'from_amount_and_rate';
 
 // ─── Entities ───────────────────────────────────────────────────────────────
 
@@ -690,11 +695,12 @@ export interface Transaction {
   date: string;
   toAssetId: string | null;
   fromAssetId: string | null;
-  feeAssetId: string | null;
+  feeSide: FeeSide | null;       // which asset bears the fee; null = no fee
   toAmount: number | null;
   fromAmount: number | null;
   feeAmount: number | null;
   exchangeRate: number | null;
+  entryMode: EntryMode | null;   // null treated as 'both_amounts'
   notes: string | null;
   createdBy: string;
   createdAt: string;
@@ -702,7 +708,6 @@ export interface Transaction {
   // Joined fields (populated on list/detail queries)
   toAsset?: Asset & { symbol: Symbol };
   fromAsset?: Asset & { symbol: Symbol };
-  feeAsset?: Asset & { symbol: Symbol };
 }
 
 export interface Snapshot {
@@ -819,11 +824,12 @@ createTransaction(householdId: string, input: {
   date: string;
   toAssetId?: string;
   fromAssetId?: string;
-  feeAssetId?: string;
+  feeSide?: FeeSide;             // which asset bears the fee
   toAmount?: number;
   fromAmount?: number;
   feeAmount?: number;
   exchangeRate?: number;
+  entryMode?: EntryMode;         // Trade only; null → 'both_amounts'
   notes?: string;
 }): Promise<ActionResult<Transaction>>
 
@@ -832,9 +838,9 @@ updateTransaction(transactionId: string, input: Partial<{
   toAmount: number;
   fromAmount: number;
   feeAmount: number;
-  feeAssetId: string;
   exchangeRate: number;
   notes: string;
+  // feeSide and entryMode are immutable after creation
 }>): Promise<ActionResult<Transaction>>
 
 deleteTransaction(transactionId: string): Promise<ActionResult>

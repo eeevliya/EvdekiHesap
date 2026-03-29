@@ -24,6 +24,10 @@ export type PriceFetchStatus = 'success' | 'error' | 'skipped'
 
 export type SnapshotTrigger = 'scheduled' | 'manual'
 
+export type FeeSide = 'to' | 'from'
+
+export type EntryMode = 'both_amounts' | 'to_amount_and_rate' | 'from_amount_and_rate'
+
 // ─── Entities ────────────────────────────────────────────────────────────────
 
 export interface Profile {
@@ -131,11 +135,12 @@ export interface Transaction {
   date: string
   toAssetId: string | null
   fromAssetId: string | null
-  feeAssetId: string | null
+  feeSide: FeeSide | null      // replaces feeAssetId; fee asset derived from feeSide + to/from asset
   toAmount: number | null
   fromAmount: number | null
   feeAmount: number | null
   exchangeRate: number | null
+  entryMode: EntryMode | null  // null treated as 'both_amounts'
   notes: string | null
   createdBy: string
   createdAt: string
@@ -143,7 +148,6 @@ export interface Transaction {
   // Joined fields (populated on list/detail queries)
   toAsset?: Asset & { symbol: Symbol }
   fromAsset?: Asset & { symbol: Symbol }
-  feeAsset?: Asset & { symbol: Symbol }
 }
 
 export interface Snapshot {

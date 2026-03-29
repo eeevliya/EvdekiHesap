@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase/server'
 import { TransactionList } from './transaction-list'
-import type { Transaction, TransactionType, SymbolType } from '@/lib/types/domain'
+import type { Transaction, TransactionType, FeeSide, EntryMode, SymbolType } from '@/lib/types/domain'
 
 export interface AssetRef {
   assetId: string
@@ -13,10 +13,9 @@ export interface AssetRef {
   accountName: string
 }
 
-export interface TransactionRow extends Omit<Transaction, 'toAsset' | 'fromAsset' | 'feeAsset'> {
+export interface TransactionRow extends Omit<Transaction, 'toAsset' | 'fromAsset'> {
   toAsset?: AssetRef
   fromAsset?: AssetRef
-  feeAsset?: AssetRef
 }
 
 function toAssetRef(raw: Record<string, unknown> | null | undefined): AssetRef | undefined {
@@ -26,10 +25,10 @@ function toAssetRef(raw: Record<string, unknown> | null | undefined): AssetRef |
   return {
     assetId: raw.id as string,
     symbolId: raw.symbol_id as string,
-    symbolCode: symbol?.code as string ?? '',
+    symbolCode: (symbol?.code as string) ?? '',
     symbolName: (symbol?.name as string | null) ?? null,
     accountId: raw.account_id as string,
-    accountName: account?.name as string ?? '',
+    accountName: (account?.name as string) ?? '',
   }
 }
 
@@ -68,18 +67,13 @@ export default async function TransactionsPage() {
         id, symbol_id, account_id,
         symbols(id, code, name, type),
         accounts(id, name)
-      ),
-      fee_asset:assets!transactions_fee_asset_id_fkey(
-        id, symbol_id, account_id,
-        symbols(id, code, name, type),
-        accounts(id, name)
       )
     `)
     .eq('household_id', householdId)
     .order('date', { ascending: false })
     .limit(500)
 
-  // Fetch all accounts + assets for edit fee_asset picker
+  // Assets for the edit form fee amount display
   const { data: assetsRaw } = await supabase
     .from('assets')
     .select('id, symbol_id, account_id, symbols(id, code, name, type), accounts(id, name)')
@@ -92,10 +86,10 @@ export default async function TransactionsPage() {
     return {
       assetId: r.id as string,
       symbolId: r.symbol_id as string,
-      symbolCode: sym?.code as string ?? '',
+      symbolCode: (sym?.code as string) ?? '',
       symbolName: (sym?.name as string | null) ?? null,
       accountId: r.account_id as string,
-      accountName: acc?.name as string ?? '',
+      accountName: (acc?.name as string) ?? '',
     }
   })
 
@@ -108,18 +102,18 @@ export default async function TransactionsPage() {
       date: r.date as string,
       toAssetId: (r.to_asset_id as string | null) ?? null,
       fromAssetId: (r.from_asset_id as string | null) ?? null,
-      feeAssetId: (r.fee_asset_id as string | null) ?? null,
+      feeSide: (r.fee_side as FeeSide | null) ?? null,
       toAmount: r.to_amount != null ? Number(r.to_amount) : null,
       fromAmount: r.from_amount != null ? Number(r.from_amount) : null,
       feeAmount: r.fee_amount != null ? Number(r.fee_amount) : null,
       exchangeRate: r.exchange_rate != null ? Number(r.exchange_rate) : null,
+      entryMode: (r.entry_mode as EntryMode | null) ?? null,
       notes: (r.notes as string | null) ?? null,
       createdBy: r.created_by as string,
       createdAt: r.created_at as string,
       updatedAt: r.updated_at as string,
       toAsset: toAssetRef(r.to_asset as Record<string, unknown> | null),
       fromAsset: toAssetRef(r.from_asset as Record<string, unknown> | null),
-      feeAsset: toAssetRef(r.fee_asset as Record<string, unknown> | null),
     }
   })
 

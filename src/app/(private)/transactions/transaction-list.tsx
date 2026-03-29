@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,7 +31,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { updateTransaction, deleteTransaction } from '@/lib/actions/transactions'
-import type { TransactionType } from '@/lib/types/domain'
+import type { TransactionType, EntryMode } from '@/lib/types/domain'
 import type { TransactionRow, AssetRef } from './page'
 
 interface Props {
@@ -80,37 +81,28 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-// ── Three-way trade field derivation ─────────────────────────────────────────
-// Convention: exchange_rate = fromAmount / toAmount  (from units per 1 to unit)
-// lastEdited tracks the two fields most recently typed; the third is derived.
+// ── Entry-mode-based three-way derivation ─────────────────────────────────────
+// Convention: exchange_rate = fromAmount / toAmount
+// The locked (derived) field is determined by the stored entryMode.
 
-type TradeField = 'fromAmount' | 'toAmount' | 'exchangeRate'
-const ALL_TRADE_FIELDS: TradeField[] = ['fromAmount', 'toAmount', 'exchangeRate']
-
-function deriveThird(
-  field: TradeField,
-  value: string,
-  current: Record<TradeField, string>,
-  prevLastEdited: [TradeField, TradeField]
-): { values: Record<TradeField, string>; lastEdited: [TradeField, TradeField] } {
-  const next: Record<TradeField, string> = { ...current, [field]: value }
-  const partner = prevLastEdited[0] === field ? prevLastEdited[1] : prevLastEdited[0]
-  const newLastEdited: [TradeField, TradeField] = [field, partner]
-  const derived = ALL_TRADE_FIELDS.find((f) => f !== field && f !== partner)!
-
+function deriveByMode(
+  mode: EntryMode | null,
+  values: { fromAmount: string; toAmount: string; exchangeRate: string }
+): { fromAmount: string; toAmount: string; exchangeRate: string } {
+  const next = { ...values }
   const from = parseFloat(next.fromAmount)
   const to = parseFloat(next.toAmount)
   const rate = parseFloat(next.exchangeRate)
+  const effectiveMode = mode ?? 'both_amounts'
 
-  if (derived === 'exchangeRate') {
+  if (effectiveMode === 'both_amounts') {
     next.exchangeRate = !isNaN(from) && !isNaN(to) && to > 0 ? (from / to).toFixed(8) : ''
-  } else if (derived === 'toAmount') {
-    next.toAmount = !isNaN(from) && !isNaN(rate) && rate > 0 ? (from / rate).toFixed(8) : ''
-  } else {
+  } else if (effectiveMode === 'to_amount_and_rate') {
     next.fromAmount = !isNaN(to) && !isNaN(rate) ? (to * rate).toFixed(8) : ''
+  } else {
+    next.toAmount = !isNaN(from) && !isNaN(rate) && rate > 0 ? (from / rate).toFixed(8) : ''
   }
-
-  return { values: next, lastEdited: newLastEdited }
+  return next
 }
 
 // ── Edit form state ────────────────────────────────────────────────────────────
@@ -119,7 +111,6 @@ interface EditForm {
   date: string
   toAmount: string
   fromAmount: string
-  feeAssetId: string
   feeAmount: string
   exchangeRate: string
   notes: string
@@ -130,14 +121,14 @@ function txToEditForm(tx: TransactionRow): EditForm {
     date: tx.date.slice(0, 16),
     toAmount: tx.toAmount != null ? String(tx.toAmount) : '',
     fromAmount: tx.fromAmount != null ? String(tx.fromAmount) : '',
-    feeAssetId: tx.feeAssetId ?? '',
     feeAmount: tx.feeAmount != null ? String(tx.feeAmount) : '',
     exchangeRate: tx.exchangeRate != null ? String(tx.exchangeRate) : '',
     notes: tx.notes ?? '',
   }
 }
 
-export function TransactionList({ transactions, assetOptions, role }: Props) {
+export function TransactionList({ transactions, assetOptions: _assetOptions, role }: Props) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -148,7 +139,6 @@ export function TransactionList({ transactions, assetOptions, role }: Props) {
   // Edit dialog
   const [editingTx, setEditingTx] = useState<TransactionRow | null>(null)
   const [editForm, setEditForm] = useState<EditForm | null>(null)
-  const [editLastEdited, setEditLastEdited] = useState<[TradeField, TradeField]>(['fromAmount', 'toAmount'])
 
   // Delete dialog
   const [deletingTx, setDeletingTx] = useState<TransactionRow | null>(null)
@@ -170,21 +160,19 @@ export function TransactionList({ transactions, assetOptions, role }: Props) {
 
   function openEdit(tx: TransactionRow) {
     setEditForm(txToEditForm(tx))
-    setEditLastEdited(['fromAmount', 'toAmount'])
     setError(null)
     setEditingTx(tx)
   }
 
-  function handleEditTradeField(field: TradeField, value: string) {
-    if (!editForm) return
-    const { values, lastEdited: newLastEdited } = deriveThird(
-      field,
-      value,
-      { fromAmount: editForm.fromAmount, toAmount: editForm.toAmount, exchangeRate: editForm.exchangeRate },
-      editLastEdited
-    )
-    setEditForm((f) => f ? { ...f, fromAmount: values.fromAmount, toAmount: values.toAmount, exchangeRate: values.exchangeRate } : f)
-    setEditLastEdited(newLastEdited)
+  function handleEditTradeField(field: 'fromAmount' | 'toAmount' | 'exchangeRate', value: string) {
+    if (!editForm || !editingTx) return
+    const updated = { ...editForm, [field]: value }
+    const derived = deriveByMode(editingTx.entryMode, {
+      fromAmount: updated.fromAmount,
+      toAmount: updated.toAmount,
+      exchangeRate: updated.exchangeRate,
+    })
+    setEditForm((f) => f ? { ...f, ...derived } : f)
   }
 
   function handleSaveEdit() {
@@ -200,7 +188,6 @@ export function TransactionList({ transactions, assetOptions, role }: Props) {
         date: new Date(editForm.date).toISOString(),
         toAmount: toAmount !== undefined && !isNaN(toAmount) ? toAmount : undefined,
         fromAmount: fromAmount !== undefined && !isNaN(fromAmount) ? fromAmount : undefined,
-        feeAssetId: editForm.feeAssetId || undefined,
         feeAmount: feeAmount !== undefined && !isNaN(feeAmount) ? feeAmount : undefined,
         exchangeRate: exchangeRate !== undefined && !isNaN(exchangeRate) ? exchangeRate : undefined,
         notes: editForm.notes || undefined,
@@ -225,6 +212,22 @@ export function TransactionList({ transactions, assetOptions, role }: Props) {
       }
       setDeletingTx(null)
     })
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────────
+
+  function feeSymbol(tx: TransactionRow): string {
+    if (tx.feeSide === 'to') return tx.toAsset?.symbolCode ?? ''
+    if (tx.feeSide === 'from') return tx.fromAsset?.symbolCode ?? ''
+    return ''
+  }
+
+  function isTradeFieldLocked(field: 'fromAmount' | 'toAmount' | 'exchangeRate'): boolean {
+    if (!editingTx || editingTx.type !== 'trade') return false
+    const mode = editingTx.entryMode ?? 'both_amounts'
+    if (mode === 'both_amounts') return field === 'exchangeRate'
+    if (mode === 'to_amount_and_rate') return field === 'fromAmount'
+    return field === 'toAmount'
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -291,7 +294,7 @@ export function TransactionList({ transactions, assetOptions, role }: Props) {
                 <p className="text-sm font-medium truncate">{txSummary(tx)}</p>
                 {tx.feeAmount != null && tx.feeAmount > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    Fee: {formatAmount(tx.feeAmount)} {tx.feeAsset?.symbolCode ?? ''}
+                    Fee: {formatAmount(tx.feeAmount)} {feeSymbol(tx)}
                   </p>
                 )}
                 {tx.notes && (
@@ -300,6 +303,14 @@ export function TransactionList({ transactions, assetOptions, role }: Props) {
               </div>
               {canMutate && (
                 <div className="flex gap-2 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => router.push(`/transactions/new?copy=${tx.id}`)}
+                    disabled={isPending}
+                  >
+                    Duplicate
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => openEdit(tx)}>
                     Edit
                   </Button>
@@ -340,37 +351,57 @@ export function TransactionList({ transactions, assetOptions, role }: Props) {
               </div>
 
               {editingTx.fromAssetId && (
-                <div className="space-y-1">
-                  <Label>From amount ({editingTx.fromAsset?.symbolCode ?? 'from'})</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={editForm.fromAmount}
-                    onChange={(e) =>
-                      editingTx.type === 'trade'
-                        ? handleEditTradeField('fromAmount', e.target.value)
-                        : setEditForm((f) => f ? { ...f, fromAmount: e.target.value } : f)
-                    }
-                  />
-                </div>
+                <>
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">From asset</p>
+                    <p className="text-sm font-medium">
+                      {editingTx.fromAsset?.accountName ?? '—'} — {editingTx.fromAsset?.symbolCode ?? '—'}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>From amount ({editingTx.fromAsset?.symbolCode ?? 'from'})</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={editForm.fromAmount}
+                      disabled={isTradeFieldLocked('fromAmount')}
+                      readOnly={isTradeFieldLocked('fromAmount')}
+                      onChange={(e) =>
+                        editingTx.type === 'trade'
+                          ? handleEditTradeField('fromAmount', e.target.value)
+                          : setEditForm((f) => f ? { ...f, fromAmount: e.target.value } : f)
+                      }
+                    />
+                  </div>
+                </>
               )}
 
               {editingTx.toAssetId && (
-                <div className="space-y-1">
-                  <Label>To amount ({editingTx.toAsset?.symbolCode ?? 'to'})</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={editForm.toAmount}
-                    onChange={(e) =>
-                      editingTx.type === 'trade'
-                        ? handleEditTradeField('toAmount', e.target.value)
-                        : setEditForm((f) => f ? { ...f, toAmount: e.target.value } : f)
-                    }
-                  />
-                </div>
+                <>
+                  <div className="space-y-0.5">
+                    <p className="text-xs text-muted-foreground">To asset</p>
+                    <p className="text-sm font-medium">
+                      {editingTx.toAsset?.accountName ?? '—'} — {editingTx.toAsset?.symbolCode ?? '—'}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>To amount ({editingTx.toAsset?.symbolCode ?? 'to'})</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={editForm.toAmount}
+                      disabled={isTradeFieldLocked('toAmount')}
+                      readOnly={isTradeFieldLocked('toAmount')}
+                      onChange={(e) =>
+                        editingTx.type === 'trade'
+                          ? handleEditTradeField('toAmount', e.target.value)
+                          : setEditForm((f) => f ? { ...f, toAmount: e.target.value } : f)
+                      }
+                    />
+                  </div>
+                </>
               )}
 
               {editingTx.type === 'trade' && (
@@ -386,44 +417,32 @@ export function TransactionList({ transactions, assetOptions, role }: Props) {
                     min="0"
                     step="any"
                     value={editForm.exchangeRate}
+                    disabled={isTradeFieldLocked('exchangeRate')}
+                    readOnly={isTradeFieldLocked('exchangeRate')}
                     onChange={(e) => handleEditTradeField('exchangeRate', e.target.value)}
                   />
                 </div>
               )}
 
-              {/* Fee — editable on trades, or if the original transaction had a fee */}
-              {(editingTx.feeAssetId || editingTx.type === 'trade') && (
-                <>
-                  <div className="space-y-1">
-                    <Label>Fee asset</Label>
-                    <Select
-                      value={editForm.feeAssetId || '__none__'}
-                      onValueChange={(v) => setEditForm((f) => f ? { ...f, feeAssetId: v === '__none__' ? '' : v } : f)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select fee asset…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">None</SelectItem>
-                        {assetOptions.map((a) => (
-                          <SelectItem key={a.assetId} value={a.assetId}>
-                            {a.accountName} — {a.symbolCode}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Fee amount</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={editForm.feeAmount}
-                      onChange={(e) => setEditForm((f) => f ? { ...f, feeAmount: e.target.value } : f)}
-                    />
-                  </div>
-                </>
+              {/* Fee amount — only editable when feeSide is set; side is immutable */}
+              {editingTx.feeSide !== null && (
+                <div className="space-y-1">
+                  <Label>
+                    Fee amount{' '}
+                    <span className="text-xs text-muted-foreground font-normal">
+                      {editingTx.feeSide === 'to'
+                        ? `Deducted from received (${editingTx.toAsset?.symbolCode ?? ''})`
+                        : `Added to sent (${editingTx.fromAsset?.symbolCode ?? ''})`}
+                    </span>
+                  </Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={editForm.feeAmount}
+                    onChange={(e) => setEditForm((f) => f ? { ...f, feeAmount: e.target.value } : f)}
+                  />
+                </div>
               )}
 
               <div className="space-y-1">

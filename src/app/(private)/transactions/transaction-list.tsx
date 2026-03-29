@@ -341,14 +341,14 @@ export function TransactionList({ transactions, assetOptions, role }: Props) {
                   <div className="space-y-1">
                     <Label>Fee asset</Label>
                     <Select
-                      value={editForm.feeAssetId}
-                      onValueChange={(v) => setEditForm((f) => f ? { ...f, feeAssetId: v } : f)}
+                      value={editForm.feeAssetId || '__none__'}
+                      onValueChange={(v) => setEditForm((f) => f ? { ...f, feeAssetId: v === '__none__' ? '' : v } : f)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select fee asset…" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="__none__">None</SelectItem>
                         {assetOptions.map((a) => (
                           <SelectItem key={a.assetId} value={a.assetId}>
                             {a.accountName} — {a.symbolCode}

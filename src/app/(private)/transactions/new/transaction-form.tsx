@@ -290,12 +290,12 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
         <>
           <div className="space-y-1">
             <Label>Fee asset</Label>
-            <Select value={feeAssetId} onValueChange={setFeeAssetId}>
+            <Select value={feeAssetId || '__none__'} onValueChange={(v) => setFeeAssetId(v === '__none__' ? '' : v)}>
               <SelectTrigger>
                 <SelectValue placeholder="None" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
+                <SelectItem value="__none__">None</SelectItem>
                 {assetOptions.map((a) => (
                   <SelectItem key={a.assetId} value={a.assetId}>
                     {a.accountName} — {a.symbolCode}

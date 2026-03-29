@@ -8,7 +8,6 @@ insert into symbols (code, name, type, primary_conversion_fiat, is_active, house
   ('USD', 'US Dollar',       'fiat_currency', null,  true, null),
   ('EUR', 'Euro',            'fiat_currency', null,  true, null),
   ('GBP', 'British Pound',   'fiat_currency', null,  true, null),
-  ('CHF', 'Swiss Franc',     'fiat_currency', null,  true, null),
 
   -- Cryptocurrencies (priced in USD)
   ('BTC', 'Bitcoin',         'cryptocurrency', 'USD', true, null),

@@ -1,8 +1,8 @@
 # TECHNICAL_PLAN.md — EvdekiHesap
 
-> **Status**: Revised — Pending PM approval
-> **Version**: 1.1
-> **Date**: 2026-03-28
+> **Status**: Approved
+> **Version**: 1.2
+> **Date**: 2026-03-29
 >
 > This document is the stable slice contract. Do not modify it without explicit PM approval.
 > It defines: database schema, TypeScript domain types, Server Action signatures, folder structure, and slice breakdown.
@@ -913,7 +913,6 @@ The following symbols are seeded in `seed.sql` as global symbols (`household_id 
 | `USD` | US Dollar | fiat_currency | null |
 | `EUR` | Euro | fiat_currency | null |
 | `GBP` | British Pound | fiat_currency | null |
-| `CHF` | Swiss Franc | fiat_currency | null |
 | `BTC` | Bitcoin | cryptocurrency | USD |
 | `ETH` | Ethereum | cryptocurrency | USD |
 | `XAU` | Gold (Troy oz) | physical_commodity | USD |

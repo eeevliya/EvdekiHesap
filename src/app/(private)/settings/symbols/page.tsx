@@ -58,6 +58,11 @@ export default async function SymbolsSettingsPage() {
   const globalSymbols = (globalRaw ?? []).map((r) => mapSymbol(r as unknown as Record<string, unknown>))
   const householdSymbols = (householdRaw ?? []).map((r) => mapSymbol(r as unknown as Record<string, unknown>))
 
+  // Active fiat symbols for the conversion fiat dropdown (global + household-custom)
+  const fiatSymbols = [...globalSymbols, ...householdSymbols].filter(
+    (s) => s.type === 'fiat_currency' && s.isActive
+  )
+
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-6">
       <div>
@@ -72,6 +77,7 @@ export default async function SymbolsSettingsPage() {
         isManager={isManager}
         globalSymbols={globalSymbols}
         householdSymbols={householdSymbols}
+        fiatSymbols={fiatSymbols}
       />
     </div>
   )

@@ -36,6 +36,7 @@ interface Props {
   isManager: boolean
   globalSymbols: Symbol[]
   householdSymbols: Symbol[]
+  fiatSymbols: Symbol[]   // active fiat symbols for the conversion fiat dropdown
 }
 
 interface SymbolFormState {
@@ -54,7 +55,7 @@ const emptyForm: SymbolFormState = {
   primaryConversionFiat: '',
 }
 
-export function SymbolsManager({ householdId, isManager, globalSymbols, householdSymbols }: Props) {
+export function SymbolsManager({ householdId, isManager, globalSymbols, householdSymbols, fiatSymbols }: Props) {
   const [isPending, startTransition] = useTransition()
   const [showCreate, setShowCreate] = useState(false)
   const [editingSymbol, setEditingSymbol] = useState<Symbol | null>(null)
@@ -82,6 +83,10 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
   function handleCreate() {
     if (!form.code.trim()) {
       setError('Code is required')
+      return
+    }
+    if (form.type !== 'fiat_currency' && !form.primaryConversionFiat) {
+      setError('Primary conversion fiat is required for non-fiat symbols')
       return
     }
     setError(null)
@@ -254,7 +259,14 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
               <Label>Type *</Label>
               <Select
                 value={form.type}
-                onValueChange={(v) => setForm((f) => ({ ...f, type: v as SymbolType }))}
+                onValueChange={(v) => {
+                  const type = v as SymbolType
+                  setForm((f) => ({
+                    ...f,
+                    type,
+                    primaryConversionFiat: type === 'fiat_currency' ? '' : f.primaryConversionFiat,
+                  }))
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -280,22 +292,32 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
               />
             </div>
 
-            <div className="space-y-1">
-              <Label>Primary conversion fiat</Label>
-              <Input
-                placeholder="e.g. TRY, USD, EUR"
-                value={form.primaryConversionFiat}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    primaryConversionFiat: e.target.value.toUpperCase(),
-                  }))
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                The fiat currency in which this symbol is priced. Leave blank for fiat symbols.
-              </p>
-            </div>
+            {form.type !== 'fiat_currency' && (
+              <div className="space-y-1">
+                <Label>
+                  Primary conversion fiat{' '}
+                  <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={form.primaryConversionFiat}
+                  onValueChange={(v) => setForm((f) => ({ ...f, primaryConversionFiat: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select fiat currency…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fiatSymbols.map((s) => (
+                      <SelectItem key={s.id} value={s.code}>
+                        {s.code}{s.name ? ` — ${s.name}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  The fiat currency in which this symbol is priced.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-1">
               <Label>Description</Label>

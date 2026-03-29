@@ -7,8 +7,7 @@
  *   - Response: { "symbol": "BTCUSDT", "price": "68432.10" }
  *   - Underscores and spaces are stripped from the pair before the request
  *
- * fetch_config shape for cryptocurrency symbols:
- *   { "binancePair": "BTCUSDT" }  — Binance.US trading pair (e.g. "BTCUSDT", "ETHUSDT", "PAXGTRY")
+ * The symbol code IS the Binance.US trading pair (e.g. "BTCUSDT", "ETHUSDT", "XRPUSDT").
  *
  * Note: Binance pairs are quoted against USDT or TRY depending on the pair.
  * The returned price is in the quote currency of the pair. The dispatcher

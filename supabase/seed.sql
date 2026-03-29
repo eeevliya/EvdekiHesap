@@ -10,8 +10,8 @@ insert into symbols (code, name, type, primary_conversion_fiat, is_active, house
   ('GBP', 'British Pound',   'fiat_currency', null,  true, null),
 
   -- Cryptocurrencies (priced in USD)
-  ('BTC', 'Bitcoin',         'cryptocurrency', 'USD', true, null),
-  ('ETH', 'Ethereum',        'cryptocurrency', 'USD', true, null),
+  ('BTCUSDT', 'Bitcoin (USDT)',  'cryptocurrency', 'USD', true, null),
+  ('ETHUSDT', 'Ethereum (USDT)', 'cryptocurrency', 'USD', true, null),
 
   -- Physical commodities — international (priced in USD)
   ('XAU', 'Gold (Troy oz)',  'physical_commodity', 'USD', true, null),

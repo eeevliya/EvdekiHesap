@@ -6,8 +6,8 @@
  *   - Prices returned in TRY by Yahoo Finance
  *   - No API key required
  *
- * fetch_config shape for stock symbols:
- *   { "yahooTicker": "THYAO.IS" }  — Yahoo Finance ticker (must include ".IS" suffix for BIST)
+ * The symbol code IS the Yahoo Finance ticker (e.g. "THYAO.IS", "AAPL"). BIST stocks
+ * must include the ".IS" suffix.
  */
 
 import YahooFinance from 'yahoo-finance2'

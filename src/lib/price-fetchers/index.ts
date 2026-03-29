@@ -49,7 +49,6 @@ interface Symbol {
   type: string
   household_id: string | null
   is_active: boolean
-  fetch_config: Record<string, unknown> | null
 }
 
 interface DispatchResult {
@@ -219,7 +218,7 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
   // Load all active symbols
   const { data: symbols, error: symErr } = await supabase
     .from('symbols')
-    .select('id, code, type, household_id, is_active, fetch_config')
+    .select('id, code, type, household_id, is_active')
     .eq('is_active', true)
 
   if (symErr) throw new Error(`Failed to load symbols: ${symErr.message}`)
@@ -270,19 +269,13 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
   if (!cryptoOnly) {
     const tefasSymbols = active.filter((s) => s.type === 'tefas_fund')
     for (const sym of tefasSymbols) {
-      const tefasCode = sym.fetch_config?.tefasCode as string | undefined
-      if (!tefasCode) {
-        await writeSkipped(supabase, sym, 'fetch_config.tefasCode not set')
-        results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'tefasCode not set' })
-        continue
-      }
       if (!isWithinWindow('tefas_fund')) {
         await writeSkipped(supabase, sym, 'Outside market hours')
         results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'Outside market hours' })
         continue
       }
       try {
-        const result = await fetchTefasPrice(tefasCode)
+        const result = await fetchTefasPrice(sym.code)
         await writeSuccess(supabase, sym, result.price, result.source)
         results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'success' })
       } catch (err) {
@@ -297,14 +290,8 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
   if (!cryptoOnly) {
     const stockSymbols = active.filter((s) => s.type === 'stock')
     for (const sym of stockSymbols) {
-      const yahooTicker = sym.fetch_config?.yahooTicker as string | undefined
-      if (!yahooTicker) {
-        await writeSkipped(supabase, sym, 'fetch_config.yahooTicker not set')
-        results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'yahooTicker not set' })
-        continue
-      }
       try {
-        const result = await fetchStockPrice(yahooTicker)
+        const result = await fetchStockPrice(sym.code)
         await writeSuccess(supabase, sym, result.price, result.source)
         results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'success' })
       } catch (err) {
@@ -318,14 +305,8 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
   // ── cryptocurrency — always runs (24/7) ───────────────────────────────────
   const cryptoSymbols = active.filter((s) => s.type === 'cryptocurrency')
   for (const sym of cryptoSymbols) {
-    const binancePair = sym.fetch_config?.binancePair as string | undefined
-    if (!binancePair) {
-      await writeSkipped(supabase, sym, 'fetch_config.binancePair not set')
-      results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'binancePair not set' })
-      continue
-    }
     try {
-      const result = await fetchCryptoPrice(binancePair)
+      const result = await fetchCryptoPrice(sym.code)
       await writeSuccess(supabase, sym, result.price, result.source)
       results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'success' })
     } catch (err) {

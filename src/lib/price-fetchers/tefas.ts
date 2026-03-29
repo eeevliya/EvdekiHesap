@@ -8,8 +8,7 @@
  *   - Response: { data: [{ FIYAT: number|string, ... }] }
  *   - FIYAT field may use comma as decimal separator (Turkish format)
  *
- * fetch_config shape for tefas_fund symbols:
- *   { "tefasCode": "TI1" }  — TEFAS fund code (e.g. "TI1", "MAC", "AAK")
+ * The symbol code IS the TEFAS fund code (e.g. "TI1", "MAC", "AAK").
  */
 
 export interface TefasFetchResult {

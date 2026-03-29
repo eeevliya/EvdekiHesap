@@ -245,7 +245,12 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
             <div className="space-y-1">
               <Label>Code *</Label>
               <Input
-                placeholder="e.g. THYAO, MYSTOCK"
+                placeholder={
+                  form.type === 'cryptocurrency' ? 'e.g. XRPUSDT' :
+                  form.type === 'stock' ? 'e.g. THYAO.IS or AAPL' :
+                  form.type === 'tefas_fund' ? 'e.g. OSD' :
+                  'e.g. MYASSET'
+                }
                 value={form.code}
                 onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
               />

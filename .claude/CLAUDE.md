@@ -54,12 +54,13 @@ These rules apply in every session without exception.
 
 1. **Commit at logical checkpoints** within a session, not just at the end. Commit messages should state what works, not just what was done.
 2. **One slice at a time.** Do not begin implementing a new slice until the PM confirms the previous one is working.
-2. **End every session with test instructions.** The PM must be able to verify the deliverable without reading code. Provide clear, step-by-step instructions for what to do and what to look for.
-3. **When in doubt, ask.** If a decision is not covered by this file or the PRD, stop and ask the PM. Do not assume.
-4. **No surprise dependencies.** Before installing any new package, state what it is and why it's needed. Wait for approval.
-5. **No speculative work.** Do not implement things that aren't in the current slice, even if they seem related.
-6. **No refactoring previous slices** unless it is directly blocking the current slice. Flag it if you see it; fix it only with PM approval.
-7. **English only.** Do not use Turkish for any UI text, labels, error messages, or placeholders. English only for MVP.
+3. **End every session with test instructions.** The PM must be able to verify the deliverable without reading code. Provide clear, step-by-step instructions for what to do and what to look for.
+4. **Update `/tests` and Current State at the end of every slice.** Add any new testable routes introduced in that slice to `src/app/tests/page.tsx` and update the Current State table in this file.
+5. **When in doubt, ask.** If a decision is not covered by this file or the PRD, stop and ask the PM. Do not assume.
+6. **No surprise dependencies.** Before installing any new package, state what it is and why it's needed. Wait for approval.
+7. **No speculative work.** Do not implement things that aren't in the current slice, even if they seem related.
+8. **No refactoring previous slices** unless it is directly blocking the current slice. Flag it if you see it; fix it only with PM approval.
+9. **English only.** Do not use Turkish for any UI text, labels, error messages, or placeholders. English only for MVP.
 
 ---
 
@@ -102,3 +103,4 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 | Known issues | None — post-slice feedback applied (duplicate pre-fill, dynamic fee labels) |
 | Technical plan | `.claude/TECHNICAL_PLAN.md` (moved from repo root) |
 | Technical plan approved | Yes (v1.2, 2026-03-29) |
+| PM testing hub | `/tests` — lists all testable routes grouped by slice |

@@ -80,6 +80,39 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+// ── Three-way trade field derivation ─────────────────────────────────────────
+// Convention: exchange_rate = fromAmount / toAmount  (from units per 1 to unit)
+// lastEdited tracks the two fields most recently typed; the third is derived.
+
+type TradeField = 'fromAmount' | 'toAmount' | 'exchangeRate'
+const ALL_TRADE_FIELDS: TradeField[] = ['fromAmount', 'toAmount', 'exchangeRate']
+
+function deriveThird(
+  field: TradeField,
+  value: string,
+  current: Record<TradeField, string>,
+  prevLastEdited: [TradeField, TradeField]
+): { values: Record<TradeField, string>; lastEdited: [TradeField, TradeField] } {
+  const next: Record<TradeField, string> = { ...current, [field]: value }
+  const partner = prevLastEdited[0] === field ? prevLastEdited[1] : prevLastEdited[0]
+  const newLastEdited: [TradeField, TradeField] = [field, partner]
+  const derived = ALL_TRADE_FIELDS.find((f) => f !== field && f !== partner)!
+
+  const from = parseFloat(next.fromAmount)
+  const to = parseFloat(next.toAmount)
+  const rate = parseFloat(next.exchangeRate)
+
+  if (derived === 'exchangeRate') {
+    next.exchangeRate = !isNaN(from) && !isNaN(to) && to > 0 ? (from / to).toFixed(8) : ''
+  } else if (derived === 'toAmount') {
+    next.toAmount = !isNaN(from) && !isNaN(rate) && rate > 0 ? (from / rate).toFixed(8) : ''
+  } else {
+    next.fromAmount = !isNaN(to) && !isNaN(rate) ? (to * rate).toFixed(8) : ''
+  }
+
+  return { values: next, lastEdited: newLastEdited }
+}
+
 // ── Edit form state ────────────────────────────────────────────────────────────
 
 interface EditForm {
@@ -94,7 +127,7 @@ interface EditForm {
 
 function txToEditForm(tx: TransactionRow): EditForm {
   return {
-    date: tx.date.slice(0, 16), // datetime-local format: YYYY-MM-DDTHH:MM
+    date: tx.date.slice(0, 16),
     toAmount: tx.toAmount != null ? String(tx.toAmount) : '',
     fromAmount: tx.fromAmount != null ? String(tx.fromAmount) : '',
     feeAssetId: tx.feeAssetId ?? '',
@@ -115,6 +148,7 @@ export function TransactionList({ transactions, assetOptions, role }: Props) {
   // Edit dialog
   const [editingTx, setEditingTx] = useState<TransactionRow | null>(null)
   const [editForm, setEditForm] = useState<EditForm | null>(null)
+  const [editLastEdited, setEditLastEdited] = useState<[TradeField, TradeField]>(['fromAmount', 'toAmount'])
 
   // Delete dialog
   const [deletingTx, setDeletingTx] = useState<TransactionRow | null>(null)
@@ -136,8 +170,21 @@ export function TransactionList({ transactions, assetOptions, role }: Props) {
 
   function openEdit(tx: TransactionRow) {
     setEditForm(txToEditForm(tx))
+    setEditLastEdited(['fromAmount', 'toAmount'])
     setError(null)
     setEditingTx(tx)
+  }
+
+  function handleEditTradeField(field: TradeField, value: string) {
+    if (!editForm) return
+    const { values, lastEdited: newLastEdited } = deriveThird(
+      field,
+      value,
+      { fromAmount: editForm.fromAmount, toAmount: editForm.toAmount, exchangeRate: editForm.exchangeRate },
+      editLastEdited
+    )
+    setEditForm((f) => f ? { ...f, fromAmount: values.fromAmount, toAmount: values.toAmount, exchangeRate: values.exchangeRate } : f)
+    setEditLastEdited(newLastEdited)
   }
 
   function handleSaveEdit() {
@@ -292,50 +339,59 @@ export function TransactionList({ transactions, assetOptions, role }: Props) {
                 />
               </div>
 
-              {editingTx.toAssetId && (
-                <div className="space-y-1">
-                  <Label>
-                    Amount ({editingTx.toAsset?.symbolCode ?? 'to'})
-                  </Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={editForm.toAmount}
-                    onChange={(e) => setEditForm((f) => f ? { ...f, toAmount: e.target.value } : f)}
-                  />
-                </div>
-              )}
-
               {editingTx.fromAssetId && (
                 <div className="space-y-1">
-                  <Label>
-                    Amount ({editingTx.fromAsset?.symbolCode ?? 'from'})
-                  </Label>
+                  <Label>From amount ({editingTx.fromAsset?.symbolCode ?? 'from'})</Label>
                   <Input
                     type="number"
                     min="0"
                     step="any"
                     value={editForm.fromAmount}
-                    onChange={(e) => setEditForm((f) => f ? { ...f, fromAmount: e.target.value } : f)}
+                    onChange={(e) =>
+                      editingTx.type === 'trade'
+                        ? handleEditTradeField('fromAmount', e.target.value)
+                        : setEditForm((f) => f ? { ...f, fromAmount: e.target.value } : f)
+                    }
+                  />
+                </div>
+              )}
+
+              {editingTx.toAssetId && (
+                <div className="space-y-1">
+                  <Label>To amount ({editingTx.toAsset?.symbolCode ?? 'to'})</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={editForm.toAmount}
+                    onChange={(e) =>
+                      editingTx.type === 'trade'
+                        ? handleEditTradeField('toAmount', e.target.value)
+                        : setEditForm((f) => f ? { ...f, toAmount: e.target.value } : f)
+                    }
                   />
                 </div>
               )}
 
               {editingTx.type === 'trade' && (
                 <div className="space-y-1">
-                  <Label>Exchange rate</Label>
+                  <Label>
+                    Exchange rate{' '}
+                    <span className="text-xs text-muted-foreground font-normal">
+                      from units per 1 to unit
+                    </span>
+                  </Label>
                   <Input
                     type="number"
                     min="0"
                     step="any"
                     value={editForm.exchangeRate}
-                    onChange={(e) => setEditForm((f) => f ? { ...f, exchangeRate: e.target.value } : f)}
+                    onChange={(e) => handleEditTradeField('exchangeRate', e.target.value)}
                   />
                 </div>
               )}
 
-              {/* Fee — only editable if original had a fee or we allow adding one */}
+              {/* Fee — editable on trades, or if the original transaction had a fee */}
               {(editingTx.feeAssetId || editingTx.type === 'trade') && (
                 <>
                   <div className="space-y-1">
@@ -398,13 +454,13 @@ export function TransactionList({ transactions, assetOptions, role }: Props) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete transaction?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will reverse all asset balance changes from this transaction. This action cannot be undone.
+              All asset balance changes from this transaction will be reversed. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmDelete} disabled={isPending}>
-              Delete
+              Delete and reverse
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

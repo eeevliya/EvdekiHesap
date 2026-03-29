@@ -260,20 +260,20 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
         />
       </div>
 
-      {/* Sell / From asset */}
+      {/* From asset */}
       {showFromAsset && (
         <AssetSelect
-          label={type === 'trade' ? 'Sell asset *' : 'From asset *'}
+          label="From asset *"
           value={fromAssetId}
           options={assetOptions}
           onChange={setFromAssetId}
         />
       )}
 
-      {/* Sell / From amount */}
+      {/* From amount */}
       {showFromAsset && (
         <div className="space-y-1">
-          <Label>{type === 'trade' ? 'Sell amount *' : 'From amount *'}</Label>
+          <Label>From amount *</Label>
           <Input
             type="number"
             min="0"
@@ -289,16 +289,10 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
         </div>
       )}
 
-      {/* Buy / To asset */}
+      {/* To asset */}
       {showToAsset && (
         <AssetSelect
-          label={
-            type === 'trade'
-              ? 'Buy asset *'
-              : type === 'transfer'
-              ? 'To asset * (same symbol)'
-              : 'To asset *'
-          }
+          label={type === 'transfer' ? 'To asset * (same symbol)' : 'To asset *'}
           value={toAssetId}
           options={type === 'transfer' ? toAssetOptionsForTransfer : assetOptions}
           onChange={setToAssetId}
@@ -308,10 +302,10 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
         />
       )}
 
-      {/* Buy / To amount */}
+      {/* To amount */}
       {showToAsset && (
         <div className="space-y-1">
-          <Label>{type === 'trade' ? 'Buy amount *' : 'Amount *'}</Label>
+          <Label>{type === 'trade' ? 'To amount *' : 'Amount *'}</Label>
           <Input
             type="number"
             min="0"
@@ -333,7 +327,7 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
           <Label>
             Exchange rate *{' '}
             <span className="text-xs text-muted-foreground font-normal">
-              sell units per 1 buy unit — edit any two fields to derive the third
+              from units per 1 to unit — edit any two fields to derive the third
             </span>
           </Label>
           <Input

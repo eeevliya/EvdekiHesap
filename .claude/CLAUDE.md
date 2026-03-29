@@ -99,6 +99,6 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 |---|---|
 | Last completed slice | Slice 3 — Transactions |
 | Next slice | Slice 4 — Price Fetching |
-| Known issues | None |
+| Known issues | None — post-slice feedback applied (label terminology, edit three-way derivation, delete dialog wording) |
 | Technical plan | `.claude/TECHNICAL_PLAN.md` (moved from repo root) |
 | Technical plan approved | Yes (v1.2, 2026-03-29) |

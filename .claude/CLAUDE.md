@@ -98,9 +98,9 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 | Field | Value |
 |---|---|
-| Last completed slice | Slice 3 — Transactions (incl. fee_side, entry_mode, net-delta edits, duplicate button) |
-| Next slice | Slice 4 — Price Fetching |
-| Known issues | None — post-slice feedback applied (duplicate pre-fill, dynamic fee labels) |
+| Last completed slice | Slice 4 — Price Fetching (fiat/tefas/stocks/crypto/gold fetchers, cron route, status widget) |
+| Next slice | Slice 5 — Snapshots |
+| Known issues | `tefas-crawler` package does not exist on npm — tefas.ts uses direct HTTP to tefas.gov.tr instead. Seed symbols BTC/ETH have no binancePair in fetch_config yet (will show skipped until configured). |
 | Technical plan | `.claude/TECHNICAL_PLAN.md` (moved from repo root) |
 | Technical plan approved | Yes (v1.2, 2026-03-29) |
 | PM testing hub | `/tests` — lists all testable routes grouped by slice |

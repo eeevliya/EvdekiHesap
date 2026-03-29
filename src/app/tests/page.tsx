@@ -30,7 +30,14 @@ export default function TestsPage() {
       ],
     },
     {
-      slice: "Slice 4 — Dashboard",
+      slice: "Slice 4 — Price Fetching",
+      routes: [
+        { path: "/settings/price-status", label: "Price fetch status widget (Refresh Now button)" },
+        { path: "/api/cron/price-fetch", label: "Cron route (GET, requires CRON_SECRET header in prod)" },
+      ],
+    },
+    {
+      slice: "Slice 5 — Dashboard",
       routes: [{ path: "/dashboard", label: "Portfolio dashboard" }],
     },
   ];

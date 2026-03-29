@@ -98,9 +98,9 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 | Field | Value |
 |---|---|
-| Last completed slice | Slice 4 — Price Fetching (fiat/tefas/stocks/crypto/gold fetchers, cron route, status widget) |
+| Last completed slice | Slice 4 — Price Fetching (incl. market-hours gating, CollectAPI rate limit, COLLECTAPI_ENABLED flag) |
 | Next slice | Slice 5 — Snapshots |
-| Known issues | `tefas-crawler` package does not exist on npm — tefas.ts uses direct HTTP to tefas.gov.tr instead. Seed symbols BTC/ETH have no binancePair in fetch_config yet (will show skipped until configured). |
+| Known issues | `tefas-crawler` package does not exist on npm — tefas.ts uses direct HTTP to tefas.gov.tr instead. Seed symbols BTC/ETH have no binancePair in fetch_config yet (will show skipped until configured). `COLLECTAPI_ENABLED=false` in .env.local — gold fetches skipped locally until Google Sheets is decommissioned. |
 | Technical plan | `.claude/TECHNICAL_PLAN.md` (moved from repo root) |
 | Technical plan approved | Yes (v1.2, 2026-03-29) |
 | PM testing hub | `/tests` — lists all testable routes grouped by slice |

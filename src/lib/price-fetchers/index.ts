@@ -16,6 +16,21 @@
  *   physical_commodity → gold.ts  (CollectAPI, batched — all gold variants in one call)
  *   custom             → skipped (no automated fetch)
  *
+ * Market-hours gating (Istanbul time = UTC+3, no DST):
+ *   fiat_currency: weekdays only
+ *   tefas_fund:    weekdays, 10:00–17:00 Istanbul
+ *   stock:         no restriction
+ *   cryptocurrency: no restriction
+ *   physical_commodity: no restriction
+ *
+ * CollectAPI rate limit: max 3 successful calls per calendar day (Istanbul time).
+ * Checked via price_fetch_log before each gold batch. See goldDailyLimitReached().
+ *
+ * COLLECTAPI_ENABLED: set to false to skip all gold fetches without calling the API.
+ * Set to false in .env.local while the Google Sheets integration is still active
+ * (to avoid consuming the 100 req/month free-plan quota). Set to true in Vercel
+ * once the Google Sheets integration is decommissioned.
+ *
  * Fallback policy: on fetch error, log the error and retain the most recent
  * exchange_rates row (do not insert a new row). The next successful fetch
  * will insert a new row.
@@ -43,6 +58,64 @@ interface DispatchResult {
   status: 'success' | 'error' | 'skipped'
   message?: string
 }
+
+// ── Istanbul time helpers ─────────────────────────────────────────────────────
+
+const ISTANBUL_OFFSET_MS = 3 * 60 * 60 * 1000 // UTC+3, no DST
+
+interface IstanbulTime {
+  /** 0 = Sunday … 6 = Saturday */
+  weekday: number
+  hour: number
+  minute: number
+}
+
+function getIstanbulTime(): IstanbulTime {
+  const nowMs = Date.now()
+  const shifted = new Date(nowMs + ISTANBUL_OFFSET_MS)
+  return {
+    weekday: shifted.getUTCDay(),
+    hour: shifted.getUTCHours(),
+    minute: shifted.getUTCMinutes(),
+  }
+}
+
+/** Returns the UTC Date corresponding to 00:00:00 today in Istanbul time. */
+function istanbulStartOfDay(): Date {
+  const nowMs = Date.now()
+  const shifted = new Date(nowMs + ISTANBUL_OFFSET_MS)
+  // Strip the time-of-day portion in the shifted (Istanbul) clock
+  const midnightShiftedMs =
+    nowMs +
+    ISTANBUL_OFFSET_MS -
+    (shifted.getUTCHours() * 3600000 +
+      shifted.getUTCMinutes() * 60000 +
+      shifted.getUTCSeconds() * 1000 +
+      shifted.getUTCMilliseconds())
+  // Convert back to UTC
+  return new Date(midnightShiftedMs - ISTANBUL_OFFSET_MS)
+}
+
+/**
+ * Returns true if the current Istanbul time is within the valid fetch window
+ * for the given symbol type.
+ */
+function isWithinWindow(type: string): boolean {
+  const { weekday, hour } = getIstanbulTime()
+  const isWeekday = weekday >= 1 && weekday <= 5
+
+  switch (type) {
+    case 'fiat_currency':
+      return isWeekday
+    case 'tefas_fund':
+      return isWeekday && hour >= 10 && hour < 17
+    default:
+      // stock, cryptocurrency, physical_commodity: no restriction
+      return true
+  }
+}
+
+// ── DB write helpers ──────────────────────────────────────────────────────────
 
 /** Write one exchange_rate row and one price_fetch_log row for a successful fetch. */
 async function writeSuccess(
@@ -95,6 +168,43 @@ async function writeSkipped(
   })
 }
 
+// ── CollectAPI rate-limit check ───────────────────────────────────────────────
+
+/**
+ * Returns true if CollectAPI has already been called 3 or more times today
+ * (Istanbul calendar day). Uses ALTIN_GRAM as the sentinel: one success log
+ * entry for ALTIN_GRAM = one CollectAPI call, because all gold variants are
+ * fetched in a single batched request.
+ *
+ * Falls back to any other gold symbol if ALTIN_GRAM is not in the active list.
+ */
+async function goldDailyLimitReached(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  goldSymbols: Symbol[]
+): Promise<boolean> {
+  const sentinel =
+    goldSymbols.find((s) => s.code === 'ALTIN_GRAM') ?? goldSymbols[0]
+  if (!sentinel) return false
+
+  const dayStart = istanbulStartOfDay()
+
+  const { count, error } = await supabase
+    .from('price_fetch_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('symbol_id', sentinel.id)
+    .eq('status', 'success')
+    .gte('fetched_at', dayStart.toISOString())
+
+  if (error) {
+    console.warn('[price-fetch] goldDailyLimitReached query error:', error.message)
+    return false // fail open: let the call through rather than silently blocking
+  }
+
+  return (count ?? 0) >= 3
+}
+
+// ── Main dispatcher ───────────────────────────────────────────────────────────
+
 /**
  * Run price fetching for all active symbols.
  *
@@ -120,25 +230,32 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
   if (!cryptoOnly) {
     const fiatSymbols = active.filter((s) => s.type === 'fiat_currency')
     if (fiatSymbols.length > 0) {
-      try {
-        const fiatResults = await fetchFiatRates(fiatSymbols.map((s) => s.code))
-        const rateByCode = new Map(fiatResults.map((r) => [r.code, r]))
-
+      if (!isWithinWindow('fiat_currency')) {
         for (const sym of fiatSymbols) {
-          const fetched = rateByCode.get(sym.code)
-          if (fetched) {
-            await writeSuccess(supabase, sym, fetched.rate, fetched.source)
-            results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'success' })
-          } else {
-            await writeSkipped(supabase, sym, 'No rate returned for this code')
-            results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'No rate returned' })
-          }
+          await writeSkipped(supabase, sym, 'Outside market hours')
+          results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'Outside market hours' })
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        for (const sym of fiatSymbols) {
-          await writeError(supabase, sym, msg)
-          results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'error', message: msg })
+      } else {
+        try {
+          const fiatResults = await fetchFiatRates(fiatSymbols.map((s) => s.code))
+          const rateByCode = new Map(fiatResults.map((r) => [r.code, r]))
+
+          for (const sym of fiatSymbols) {
+            const fetched = rateByCode.get(sym.code)
+            if (fetched) {
+              await writeSuccess(supabase, sym, fetched.rate, fetched.source)
+              results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'success' })
+            } else {
+              await writeSkipped(supabase, sym, 'No rate returned for this code')
+              results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'No rate returned' })
+            }
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          for (const sym of fiatSymbols) {
+            await writeError(supabase, sym, msg)
+            results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'error', message: msg })
+          }
         }
       }
     }
@@ -154,6 +271,11 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
         results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'tefasCode not set' })
         continue
       }
+      if (!isWithinWindow('tefas_fund')) {
+        await writeSkipped(supabase, sym, 'Outside market hours')
+        results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'Outside market hours' })
+        continue
+      }
       try {
         const result = await fetchTefasPrice(tefasCode)
         await writeSuccess(supabase, sym, result.price, result.source)
@@ -166,7 +288,7 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
     }
   }
 
-  // ── stock ──────────────────────────────────────────────────────────────────
+  // ── stock — no market-hours restriction ───────────────────────────────────
   if (!cryptoOnly) {
     const stockSymbols = active.filter((s) => s.type === 'stock')
     for (const sym of stockSymbols) {
@@ -208,7 +330,7 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
     }
   }
 
-  // ── physical_commodity (gold) — batched ───────────────────────────────────
+  // ── physical_commodity (gold) — batched, rate-limited ─────────────────────
   if (!cryptoOnly) {
     const goldCodes = Object.keys(GOLD_SYMBOL_NAMES)
     const goldSymbols = active.filter(
@@ -216,25 +338,43 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
     )
 
     if (goldSymbols.length > 0) {
-      try {
-        const goldResults = await fetchGoldPrices(goldSymbols.map((s) => s.code))
-        const priceByCode = new Map(goldResults.map((r) => [r.symbolCode, r]))
+      // COLLECTAPI_ENABLED=false: skip without calling the API.
+      // Set to false in .env.local while the Google Sheets integration is still
+      // active to avoid consuming the 100 req/month free-plan quota.
+      // Set to true in Vercel once the Google Sheets integration is decommissioned.
+      const collectApiEnabled = process.env.COLLECTAPI_ENABLED !== 'false'
 
+      if (!collectApiEnabled) {
         for (const sym of goldSymbols) {
-          const fetched = priceByCode.get(sym.code)
-          if (fetched) {
-            await writeSuccess(supabase, sym, fetched.price, fetched.source)
-            results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'success' })
-          } else {
-            await writeSkipped(supabase, sym, 'Not returned by CollectAPI')
-            results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'Not in API response' })
-          }
+          await writeSkipped(supabase, sym, 'CollectAPI disabled')
+          results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'CollectAPI disabled' })
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
+      } else if (await goldDailyLimitReached(supabase, goldSymbols)) {
         for (const sym of goldSymbols) {
-          await writeError(supabase, sym, msg)
-          results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'error', message: msg })
+          await writeSkipped(supabase, sym, 'Daily CollectAPI limit reached (3/day)')
+          results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'Daily CollectAPI limit reached (3/day)' })
+        }
+      } else {
+        try {
+          const goldResults = await fetchGoldPrices(goldSymbols.map((s) => s.code))
+          const priceByCode = new Map(goldResults.map((r) => [r.symbolCode, r]))
+
+          for (const sym of goldSymbols) {
+            const fetched = priceByCode.get(sym.code)
+            if (fetched) {
+              await writeSuccess(supabase, sym, fetched.price, fetched.source)
+              results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'success' })
+            } else {
+              await writeSkipped(supabase, sym, 'Not returned by CollectAPI')
+              results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'Not in API response' })
+            }
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          for (const sym of goldSymbols) {
+            await writeError(supabase, sym, msg)
+            results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'error', message: msg })
+          }
         }
       }
     }

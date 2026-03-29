@@ -61,6 +61,53 @@ function AssetSelect({
   )
 }
 
+// ── Three-way trade field derivation ─────────────────────────────────────────
+// Convention: exchange_rate = fromAmount / toAmount  (sell units per 1 buy unit)
+// e.g. selling 100 000 USD for 1 BTC → rate = 100 000
+//
+// lastEdited tracks the two fields the user most recently typed.
+// The third field is always auto-derived from the other two.
+
+type TradeField = 'fromAmount' | 'toAmount' | 'exchangeRate'
+const ALL_TRADE_FIELDS: TradeField[] = ['fromAmount', 'toAmount', 'exchangeRate']
+
+function deriveThird(
+  field: TradeField,
+  value: string,
+  current: Record<TradeField, string>,
+  prevLastEdited: [TradeField, TradeField]
+): { values: Record<TradeField, string>; lastEdited: [TradeField, TradeField] } {
+  // Build new values with the just-edited field applied
+  const next: Record<TradeField, string> = { ...current, [field]: value }
+
+  // The second element of the new lastEdited is the other recently-edited field
+  const partner = prevLastEdited[0] === field ? prevLastEdited[1] : prevLastEdited[0]
+  const newLastEdited: [TradeField, TradeField] = [field, partner]
+
+  // The derived field is whichever is not in newLastEdited
+  const derived = ALL_TRADE_FIELDS.find((f) => f !== field && f !== partner)!
+
+  const from = parseFloat(next.fromAmount)
+  const to = parseFloat(next.toAmount)
+  const rate = parseFloat(next.exchangeRate)
+
+  if (derived === 'exchangeRate') {
+    // rate = fromAmount / toAmount
+    next.exchangeRate =
+      !isNaN(from) && !isNaN(to) && to > 0 ? (from / to).toFixed(8) : ''
+  } else if (derived === 'toAmount') {
+    // toAmount = fromAmount / exchangeRate
+    next.toAmount =
+      !isNaN(from) && !isNaN(rate) && rate > 0 ? (from / rate).toFixed(8) : ''
+  } else {
+    // fromAmount = toAmount * exchangeRate
+    next.fromAmount =
+      !isNaN(to) && !isNaN(rate) ? (to * rate).toFixed(8) : ''
+  }
+
+  return { values: next, lastEdited: newLastEdited }
+}
+
 export function TransactionForm({ householdId, assetOptions }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -75,10 +122,12 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
   const [fromAmount, setFromAmount] = useState('')
   const [feeAmount, setFeeAmount] = useState('')
   const [exchangeRate, setExchangeRate] = useState('')
-  const [exchangeRateOverride, setExchangeRateOverride] = useState(false)
+  // lastEdited: the two trade fields the user most recently typed
+  // Default: [fromAmount, toAmount] → exchange rate is auto-derived
+  const [lastEdited, setLastEdited] = useState<[TradeField, TradeField]>(['fromAmount', 'toAmount'])
   const [notes, setNotes] = useState('')
 
-  // Reset asset selections when type changes
+  // Reset trade-related fields when type changes
   useEffect(() => {
     setToAssetId('')
     setFromAssetId('')
@@ -87,28 +136,32 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
     setFromAmount('')
     setFeeAmount('')
     setExchangeRate('')
-    setExchangeRateOverride(false)
+    setLastEdited(['fromAmount', 'toAmount'])
     setError(null)
   }, [type])
 
-  // Auto-compute exchange_rate for trades
-  useEffect(() => {
-    if (type === 'trade' && !exchangeRateOverride) {
-      const from = parseFloat(fromAmount)
-      const to = parseFloat(toAmount)
-      if (!isNaN(from) && !isNaN(to) && from > 0) {
-        setExchangeRate((to / from).toFixed(8))
-      } else {
-        setExchangeRate('')
-      }
-    }
-  }, [toAmount, fromAmount, type, exchangeRateOverride])
+  // Handler for the three interdependent trade amount fields
+  function handleTradeField(field: TradeField, value: string) {
+    const { values, lastEdited: newLastEdited } = deriveThird(
+      field,
+      value,
+      { fromAmount, toAmount, exchangeRate },
+      lastEdited
+    )
+    setFromAmount(values.fromAmount)
+    setToAmount(values.toAmount)
+    setExchangeRate(values.exchangeRate)
+    setLastEdited(newLastEdited)
+  }
 
   // For Transfer: filter toAsset options to only match fromAsset's symbol
   const fromAsset = assetOptions.find((a) => a.assetId === fromAssetId)
-  const toAssetOptionsForTransfer = type === 'transfer'
-    ? assetOptions.filter((a) => a.symbolId === fromAsset?.symbolId && a.assetId !== fromAssetId)
-    : assetOptions
+  const toAssetOptionsForTransfer =
+    type === 'transfer'
+      ? assetOptions.filter(
+          (a) => a.symbolId === fromAsset?.symbolId && a.assetId !== fromAssetId
+        )
+      : assetOptions
 
   function validate(): string | null {
     if (!date) return 'Date is required'
@@ -120,18 +173,21 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
       if (!fromAssetId) return 'From asset is required'
       if (!toAssetId) return 'To asset is required'
       if (fromAssetId === toAssetId) return 'From and to assets must be different'
-      if (!fromAsset || fromAsset.symbolId !== assetOptions.find((a) => a.assetId === toAssetId)?.symbolId) {
+      if (
+        !fromAsset ||
+        fromAsset.symbolId !== assetOptions.find((a) => a.assetId === toAssetId)?.symbolId
+      ) {
         return 'Transfer requires the same symbol in both assets'
       }
       if (!fromAmount) return 'From amount is required'
       if (!toAmount) return 'To amount is required'
     }
     if (type === 'trade') {
-      if (!fromAssetId) return 'From asset is required'
-      if (!toAssetId) return 'To asset is required'
-      if (fromAssetId === toAssetId) return 'From and to assets must be different'
-      if (!fromAmount) return 'From amount is required'
-      if (!toAmount) return 'To amount is required'
+      if (!fromAssetId) return 'Sell asset is required'
+      if (!toAssetId) return 'Buy asset is required'
+      if (fromAssetId === toAssetId) return 'Sell and buy assets must be different'
+      if (!fromAmount) return 'Sell amount is required'
+      if (!toAmount) return 'Buy amount is required'
       if (!exchangeRate) return 'Exchange rate is required'
     }
     if (feeAmount && !feeAssetId) return 'Fee asset is required when fee amount is specified'
@@ -167,7 +223,8 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
     })
   }
 
-  const showToAsset = type === 'deposit' || type === 'interest' || type === 'transfer' || type === 'trade'
+  const showToAsset =
+    type === 'deposit' || type === 'interest' || type === 'transfer' || type === 'trade'
   const showFromAsset = type === 'debit' || type === 'transfer' || type === 'trade'
   const showExchangeRate = type === 'trade'
   const showFee = type === 'trade' || type === 'transfer'
@@ -203,7 +260,7 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
         />
       </div>
 
-      {/* From asset */}
+      {/* Sell / From asset */}
       {showFromAsset && (
         <AssetSelect
           label={type === 'trade' ? 'Sell asset *' : 'From asset *'}
@@ -213,51 +270,59 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
         />
       )}
 
-      {/* From amount */}
+      {/* Sell / From amount */}
       {showFromAsset && (
         <div className="space-y-1">
-          <Label>
-            {type === 'trade' ? 'Sell amount *' : 'From amount *'}
-          </Label>
+          <Label>{type === 'trade' ? 'Sell amount *' : 'From amount *'}</Label>
           <Input
             type="number"
             min="0"
             step="any"
             placeholder="0"
             value={fromAmount}
-            onChange={(e) => setFromAmount(e.target.value)}
+            onChange={(e) =>
+              type === 'trade'
+                ? handleTradeField('fromAmount', e.target.value)
+                : setFromAmount(e.target.value)
+            }
           />
         </div>
       )}
 
-      {/* To asset */}
+      {/* Buy / To asset */}
       {showToAsset && (
         <AssetSelect
-          label={type === 'trade' ? 'Buy asset *' : type === 'transfer' ? 'To asset * (same symbol)' : 'To asset *'}
+          label={
+            type === 'trade'
+              ? 'Buy asset *'
+              : type === 'transfer'
+              ? 'To asset * (same symbol)'
+              : 'To asset *'
+          }
           value={toAssetId}
           options={type === 'transfer' ? toAssetOptionsForTransfer : assetOptions}
           onChange={setToAssetId}
           placeholder={
-            type === 'transfer' && !fromAssetId
-              ? 'Select from asset first…'
-              : 'Select asset…'
+            type === 'transfer' && !fromAssetId ? 'Select from asset first…' : 'Select asset…'
           }
         />
       )}
 
-      {/* To amount */}
+      {/* Buy / To amount */}
       {showToAsset && (
         <div className="space-y-1">
-          <Label>
-            {type === 'trade' ? 'Buy amount *' : 'Amount *'}
-          </Label>
+          <Label>{type === 'trade' ? 'Buy amount *' : 'Amount *'}</Label>
           <Input
             type="number"
             min="0"
             step="any"
             placeholder="0"
             value={toAmount}
-            onChange={(e) => setToAmount(e.target.value)}
+            onChange={(e) =>
+              type === 'trade'
+                ? handleTradeField('toAmount', e.target.value)
+                : setToAmount(e.target.value)
+            }
           />
         </div>
       )}
@@ -268,7 +333,7 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
           <Label>
             Exchange rate *{' '}
             <span className="text-xs text-muted-foreground font-normal">
-              (auto-computed; edit to override)
+              sell units per 1 buy unit — edit any two fields to derive the third
             </span>
           </Label>
           <Input
@@ -277,10 +342,7 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
             step="any"
             placeholder="0"
             value={exchangeRate}
-            onChange={(e) => {
-              setExchangeRateOverride(true)
-              setExchangeRate(e.target.value)
-            }}
+            onChange={(e) => handleTradeField('exchangeRate', e.target.value)}
           />
         </div>
       )}
@@ -290,7 +352,10 @@ export function TransactionForm({ householdId, assetOptions }: Props) {
         <>
           <div className="space-y-1">
             <Label>Fee asset</Label>
-            <Select value={feeAssetId || '__none__'} onValueChange={(v) => setFeeAssetId(v === '__none__' ? '' : v)}>
+            <Select
+              value={feeAssetId || '__none__'}
+              onValueChange={(v) => setFeeAssetId(v === '__none__' ? '' : v)}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="None" />
               </SelectTrigger>

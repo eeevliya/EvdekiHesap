@@ -45,7 +45,6 @@ interface SymbolFormState {
   description: string
   type: SymbolType
   primaryConversionFiat: string
-  fetchConfigValue: string
 }
 
 const emptyForm: SymbolFormState = {
@@ -54,26 +53,6 @@ const emptyForm: SymbolFormState = {
   description: '',
   type: 'custom',
   primaryConversionFiat: '',
-  fetchConfigValue: '',
-}
-
-interface FetchConfigField {
-  label: string
-  placeholder: string
-  key: string
-}
-
-function getFetchConfigField(type: SymbolType): FetchConfigField | null {
-  switch (type) {
-    case 'tefas_fund':
-      return { label: 'Tefas Fund Code', placeholder: 'e.g. OSD', key: 'tefasCode' }
-    case 'cryptocurrency':
-      return { label: 'Binance Pair', placeholder: 'e.g. XRPUSDT', key: 'binancePair' }
-    case 'stock':
-      return { label: 'Yahoo Finance Ticker', placeholder: 'e.g. THYAO.IS', key: 'yahooTicker' }
-    default:
-      return null
-  }
 }
 
 export function SymbolsManager({ householdId, isManager, globalSymbols, householdSymbols, fiatSymbols }: Props) {
@@ -90,16 +69,12 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
   }
 
   function openEdit(symbol: Symbol) {
-    const field = getFetchConfigField(symbol.type)
-    const fetchConfigValue =
-      field && symbol.fetchConfig ? String(symbol.fetchConfig[field.key] ?? '') : ''
     setForm({
       code: symbol.code,
       name: symbol.name ?? '',
       description: symbol.description ?? '',
       type: symbol.type,
       primaryConversionFiat: symbol.primaryConversionFiat ?? '',
-      fetchConfigValue,
     })
     setError(null)
     setEditingSymbol(symbol)
@@ -112,18 +87,12 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
     }
     setError(null)
     startTransition(async () => {
-      const fetchConfigField = getFetchConfigField(form.type)
-      const fetchConfig =
-        fetchConfigField && form.fetchConfigValue.trim()
-          ? { [fetchConfigField.key]: form.fetchConfigValue.trim() }
-          : undefined
       const result = await createSymbol(householdId, {
         code: form.code,
         name: form.name || undefined,
         description: form.description || undefined,
         type: form.type,
         primaryConversionFiat: form.primaryConversionFiat || undefined,
-        fetchConfig,
       })
       if (!result.success) {
         setError(result.error)
@@ -137,16 +106,9 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
     if (!editingSymbol) return
     setError(null)
     startTransition(async () => {
-      const fetchConfigField = getFetchConfigField(editingSymbol.type)
-      const fetchConfig = fetchConfigField
-        ? form.fetchConfigValue.trim()
-          ? { [fetchConfigField.key]: form.fetchConfigValue.trim() }
-          : null
-        : undefined
       const result = await updateSymbol(editingSymbol.id, {
         name: form.name || null,
         description: form.description || null,
-        fetchConfig,
       })
       if (!result.success) {
         setError(result.error)
@@ -299,7 +261,6 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
                     ...f,
                     type,
                     primaryConversionFiat: type === 'fiat_currency' ? '' : f.primaryConversionFiat,
-                    fetchConfigValue: '',
                   }))
                 }}
               >
@@ -317,21 +278,6 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
                 </SelectContent>
               </Select>
             </div>
-
-            {(() => {
-              const field = getFetchConfigField(form.type)
-              if (!field) return null
-              return (
-                <div className="space-y-1">
-                  <Label>{field.label}</Label>
-                  <Input
-                    placeholder={field.placeholder}
-                    value={form.fetchConfigValue}
-                    onChange={(e) => setForm((f) => ({ ...f, fetchConfigValue: e.target.value }))}
-                  />
-                </div>
-              )
-            })()}
 
             <div className="space-y-1">
               <Label>Name</Label>
@@ -407,21 +353,6 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               />
             </div>
-
-            {(() => {
-              const field = editingSymbol ? getFetchConfigField(editingSymbol.type) : null
-              if (!field) return null
-              return (
-                <div className="space-y-1">
-                  <Label>{field.label}</Label>
-                  <Input
-                    placeholder={field.placeholder}
-                    value={form.fetchConfigValue}
-                    onChange={(e) => setForm((f) => ({ ...f, fetchConfigValue: e.target.value }))}
-                  />
-                </div>
-              )
-            })()}
 
             <div className="space-y-1">
               <Label>Description</Label>

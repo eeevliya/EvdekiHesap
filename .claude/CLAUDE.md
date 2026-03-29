@@ -97,8 +97,8 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 | Field | Value |
 |---|---|
-| Last completed slice | Slice 2 — Symbols, Accounts & Assets (+ post-slice fixes) |
-| Next slice | Slice 3 — Transactions |
+| Last completed slice | Slice 3 — Transactions |
+| Next slice | Slice 4 — Price Fetching |
 | Known issues | None |
 | Technical plan | `.claude/TECHNICAL_PLAN.md` (moved from repo root) |
 | Technical plan approved | Yes (v1.2, 2026-03-29) |

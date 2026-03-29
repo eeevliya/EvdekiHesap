@@ -85,10 +85,6 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
       setError('Code is required')
       return
     }
-    if (form.type !== 'fiat_currency' && !form.primaryConversionFiat) {
-      setError('Primary conversion fiat is required for non-fiat symbols')
-      return
-    }
     setError(null)
     startTransition(async () => {
       const result = await createSymbol(householdId, {
@@ -294,18 +290,16 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
 
             {form.type !== 'fiat_currency' && (
               <div className="space-y-1">
-                <Label>
-                  Primary conversion fiat{' '}
-                  <span className="text-destructive">*</span>
-                </Label>
+                <Label>Primary conversion fiat</Label>
                 <Select
                   value={form.primaryConversionFiat}
-                  onValueChange={(v) => setForm((f) => ({ ...f, primaryConversionFiat: v }))}
+                  onValueChange={(v) => setForm((f) => ({ ...f, primaryConversionFiat: v === '__none__' ? '' : v }))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select fiat currency…" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
                     {fiatSymbols.map((s) => (
                       <SelectItem key={s.id} value={s.code}>
                         {s.code}{s.name ? ` — ${s.name}` : ''}

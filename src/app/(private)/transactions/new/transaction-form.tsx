@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -105,7 +105,6 @@ export function TransactionForm({ householdId, assetOptions, initialValues }: Pr
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const isMounted = useRef(false)
 
   const [type, setType] = useState<TransactionType>(initialValues?.type ?? 'deposit')
   const [date, setDate] = useState(initialValues?.date ?? nowLocal())
@@ -119,12 +118,8 @@ export function TransactionForm({ householdId, assetOptions, initialValues }: Pr
   const [entryMode, setEntryMode] = useState<EntryMode>(initialValues?.entryMode ?? 'both_amounts')
   const [notes, setNotes] = useState(initialValues?.notes ?? '')
 
-  // Reset form when type changes — skip on initial mount (for duplicates)
-  useEffect(() => {
-    if (!isMounted.current) {
-      isMounted.current = true
-      return
-    }
+  function handleTypeChange(newType: TransactionType) {
+    setType(newType)
     setToAssetId('')
     setFromAssetId('')
     setFeeSide(null)
@@ -134,7 +129,7 @@ export function TransactionForm({ householdId, assetOptions, initialValues }: Pr
     setExchangeRate('')
     setEntryMode('both_amounts')
     setError(null)
-  }, [type])
+  }
 
   function handleEntryModeChange(newMode: EntryMode) {
     setEntryMode(newMode)
@@ -158,6 +153,15 @@ export function TransactionForm({ householdId, assetOptions, initialValues }: Pr
   }
 
   const fromAsset = assetOptions.find((a) => a.assetId === fromAssetId)
+  const toAsset = assetOptions.find((a) => a.assetId === toAssetId)
+
+  const feeSideToLabel = toAsset
+    ? `Deducted from ${toAsset.accountName} — ${toAsset.symbolCode}`
+    : 'Deducted from received amount'
+  const feeSideFromLabel = fromAsset
+    ? `Added to ${fromAsset.accountName} — ${fromAsset.symbolCode}`
+    : 'Added to sent amount'
+
   const toAssetOptionsForTransfer =
     type === 'transfer'
       ? assetOptions.filter((a) => a.symbolId === fromAsset?.symbolId && a.assetId !== fromAssetId)
@@ -242,7 +246,7 @@ export function TransactionForm({ householdId, assetOptions, initialValues }: Pr
       {/* Type */}
       <div className="space-y-1">
         <Label>Type *</Label>
-        <Select value={type} onValueChange={(v) => setType(v as TransactionType)}>
+        <Select value={type} onValueChange={(v) => handleTypeChange(v as TransactionType)}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -387,8 +391,8 @@ export function TransactionForm({ householdId, assetOptions, initialValues }: Pr
           <div className="space-y-1.5">
             {([
               [null, 'None'],
-              ['to', 'Deducted from received amount'],
-              ['from', 'Added to sent amount'],
+              ['to', feeSideToLabel],
+              ['from', feeSideFromLabel],
             ] as [FeeSide | null, string][]).map(([value, label]) => (
               <label key={String(value)} className="flex items-center gap-2 text-sm cursor-pointer">
                 <input

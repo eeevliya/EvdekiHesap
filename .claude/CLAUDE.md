@@ -98,7 +98,7 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 | Field | Value |
 |---|---|
-| Last completed slice | Slice 4 — Price Fetching (incl. corrected market-hours gates, TRY always-success, rate columns, skip messages; fetchers use symbol.code directly; BTC/ETH renamed to BTCUSDT/ETHUSDT) |
+| Last completed slice | Slice 4 — Price Fetching + vercel.json cron jobs added (price-fetch every 15 min, snapshot every 6 h) |
 | Next slice | Slice 5 — Snapshots |
 | Known issues | `tefas-crawler` package does not exist on npm — tefas.ts uses direct HTTP to tefas.gov.tr instead. `COLLECTAPI_ENABLED=false` in .env.local — gold fetches skipped locally until Google Sheets is decommissioned. |
 | Technical plan | `.claude/TECHNICAL_PLAN.md` (moved from repo root) |

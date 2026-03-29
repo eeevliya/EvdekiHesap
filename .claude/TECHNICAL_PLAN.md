@@ -938,7 +938,7 @@ Two separate Vercel cron jobs (free tier supports up to 2 cron expressions):
 
 | Job | Route | Schedule | Notes |
 |---|---|---|---|
-| Price fetch | `/api/cron/price-fetch` | Every 15 min, Mon–Fri 06:00–15:00 UTC (= 09:00–18:00 Istanbul) | Crypto fetcher (`crypto.ts`) also runs on a 24/7 schedule; this is handled by calling it unconditionally and the weekday restriction applying only to Tefas/BIST/fiat |
+| Price fetch | `/api/cron/price-fetch` | `*/15 * * * *` (every 15 min, 24/7) | All time restrictions are symbol-type-based in the dispatcher: tefas_fund weekdays 10:00–17:00 Istanbul; physical_commodity any day 10:00–17:00 Istanbul; fiat/crypto/stock unrestricted |
 | Snapshot | `/api/cron/snapshot` | `0 0,6,12,18 * * *` (00:00, 06:00, 12:00, 18:00 UTC) | Every 6 hours |
 
 Both routes are secured with a `CRON_SECRET` header checked at the start of each handler.

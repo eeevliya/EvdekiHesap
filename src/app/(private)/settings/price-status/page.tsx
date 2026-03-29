@@ -10,15 +10,15 @@ export default async function PriceStatusPage() {
 
   if (!user) redirect('/login')
 
-  // Load active symbols with their latest exchange rate and last fetch log entry
+  // Load active symbols — primary_conversion_fiat needed for rate derivation
   const { data: symbols } = await supabase
     .from('symbols')
-    .select('id, code, name, type, is_active')
+    .select('id, code, name, type, is_active, primary_conversion_fiat')
     .eq('is_active', true)
     .order('type')
     .order('code')
 
-  // Latest rate per symbol
+  // Latest rate per symbol (ordered desc so first occurrence per symbol_id is most recent)
   const { data: latestRates } = await supabase
     .from('exchange_rates')
     .select('symbol_id, rate, fetched_at, source')
@@ -53,14 +53,22 @@ export default async function PriceStatusPage() {
     }
   }
 
+  // USD/TRY and EUR/TRY are needed to derive display-currency values for all symbols.
+  // fiat symbols store TRY rates (convention: null primary_conversion_fiat = TRY).
+  const usdSymbol = (symbols ?? []).find((s) => s.code === 'USD')
+  const eurSymbol = (symbols ?? []).find((s) => s.code === 'EUR')
+  const usdTryRate = usdSymbol ? (rateBySymbol.get(usdSymbol.id)?.rate ?? null) : null
+  const eurTryRate = eurSymbol ? (rateBySymbol.get(eurSymbol.id)?.rate ?? null) : null
+
   const rows = (symbols ?? []).map((sym) => ({
     id: sym.id as string,
     code: sym.code as string,
     name: sym.name as string | null,
     type: sym.type as string,
+    primaryConversionFiat: sym.primary_conversion_fiat as string | null,
     latestRate: rateBySymbol.get(sym.id) ?? null,
     lastLog: logBySymbol.get(sym.id) ?? null,
   }))
 
-  return <PriceStatusWidget rows={rows} />
+  return <PriceStatusWidget rows={rows} usdTryRate={usdTryRate} eurTryRate={eurTryRate} />
 }

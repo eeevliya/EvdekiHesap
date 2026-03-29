@@ -17,11 +17,11 @@
  *   custom             → skipped (no automated fetch)
  *
  * Market-hours gating (Istanbul time = UTC+3, no DST):
- *   fiat_currency: weekdays only
- *   tefas_fund:    weekdays, 10:00–17:00 Istanbul
- *   stock:         no restriction
- *   cryptocurrency: no restriction
- *   physical_commodity: no restriction
+ *   tefas_fund:         weekdays only, 10:00–17:00 Istanbul
+ *   physical_commodity: 10:00–17:00 Istanbul, any day
+ *   fiat_currency, cryptocurrency, stock: no restriction
+ *
+ * TRY is always written as success (rate 1.0) regardless of time or day.
  *
  * CollectAPI rate limit: max 3 successful calls per calendar day (Istanbul time).
  * Checked via price_fetch_log before each gold batch. See goldDailyLimitReached().
@@ -105,12 +105,13 @@ function isWithinWindow(type: string): boolean {
   const isWeekday = weekday >= 1 && weekday <= 5
 
   switch (type) {
-    case 'fiat_currency':
-      return isWeekday
     case 'tefas_fund':
       return isWeekday && hour >= 10 && hour < 17
+    case 'physical_commodity':
+      // Any day of the week, but only during 10:00–17:00 Istanbul time
+      return hour >= 10 && hour < 17
     default:
-      // stock, cryptocurrency, physical_commodity: no restriction
+      // fiat_currency, cryptocurrency, stock: no restriction
       return true
   }
 }
@@ -230,17 +231,21 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
   if (!cryptoOnly) {
     const fiatSymbols = active.filter((s) => s.type === 'fiat_currency')
     if (fiatSymbols.length > 0) {
-      if (!isWithinWindow('fiat_currency')) {
-        for (const sym of fiatSymbols) {
-          await writeSkipped(supabase, sym, 'Outside market hours')
-          results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'Outside market hours' })
-        }
-      } else {
+      // TRY: always success regardless of time or day — never gated, never skipped
+      const trySymbol = fiatSymbols.find((s) => s.code === 'TRY')
+      if (trySymbol) {
+        await writeSuccess(supabase, trySymbol, 1.0, 'tcmb')
+        results.push({ symbolId: trySymbol.id, symbolCode: 'TRY', status: 'success' })
+      }
+
+      // All other fiat symbols: no time restriction
+      const nonTryFiat = fiatSymbols.filter((s) => s.code !== 'TRY')
+      if (nonTryFiat.length > 0) {
         try {
-          const fiatResults = await fetchFiatRates(fiatSymbols.map((s) => s.code))
+          const fiatResults = await fetchFiatRates(nonTryFiat.map((s) => s.code))
           const rateByCode = new Map(fiatResults.map((r) => [r.code, r]))
 
-          for (const sym of fiatSymbols) {
+          for (const sym of nonTryFiat) {
             const fetched = rateByCode.get(sym.code)
             if (fetched) {
               await writeSuccess(supabase, sym, fetched.rate, fetched.source)
@@ -252,7 +257,7 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
           }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
-          for (const sym of fiatSymbols) {
+          for (const sym of nonTryFiat) {
             await writeError(supabase, sym, msg)
             results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'error', message: msg })
           }
@@ -348,6 +353,11 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
         for (const sym of goldSymbols) {
           await writeSkipped(supabase, sym, 'CollectAPI disabled')
           results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'CollectAPI disabled' })
+        }
+      } else if (!isWithinWindow('physical_commodity')) {
+        for (const sym of goldSymbols) {
+          await writeSkipped(supabase, sym, 'Outside market hours')
+          results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'skipped', message: 'Outside market hours' })
         }
       } else if (await goldDailyLimitReached(supabase, goldSymbols)) {
         for (const sym of goldSymbols) {

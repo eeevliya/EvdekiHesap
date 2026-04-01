@@ -98,7 +98,7 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 | Field | Value |
 |---|---|
-| Last completed slice | Slice 5 — Snapshots (migrations applied; cron route + manual trigger + history page at /settings/snapshots) |
+| Last completed slice | Slice 5 — Snapshots (snapshot_assets schema revised: exchange_rate + value_in_display_currency dropped; value_try/usd/eur added) |
 | Next slice | Slice 6 — Dashboard |
 | Known issues | `tefas-crawler` package does not exist on npm — tefas.ts uses direct HTTP to tefas.gov.tr instead. `COLLECTAPI_ENABLED=false` in .env.local — gold fetches skipped locally until Google Sheets is decommissioned. |
 | Technical plan | `.claude/TECHNICAL_PLAN.md` (moved from repo root) |

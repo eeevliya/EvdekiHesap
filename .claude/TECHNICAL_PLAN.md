@@ -351,18 +351,19 @@ create index snapshots_household_taken_idx on snapshots (household_id, taken_at 
 ### 2.12 snapshot_assets
 
 ```sql
--- 00012_snapshot_assets.sql
+-- 00012_snapshot_assets.sql + 00013_snapshot_assets_values.sql
 create table snapshot_assets (
-  id                       uuid primary key default gen_random_uuid(),
-  snapshot_id              uuid not null references snapshots(id) on delete cascade,
-  household_id             uuid not null references households(id) on delete cascade,
-  asset_id                 uuid not null references assets(id),
-  symbol_id                uuid not null references symbols(id),
-  amount                   numeric not null,
-  exchange_rate            numeric not null,             -- rate at snapshot time (in primary_conversion_fiat)
-  value_in_display_currency numeric not null,
-  created_at               timestamptz not null default now(),
-  updated_at               timestamptz not null default now()  -- mutable: reserved for future snapshot-editing feature
+  id           uuid primary key default gen_random_uuid(),
+  snapshot_id  uuid not null references snapshots(id) on delete cascade,
+  household_id uuid not null references households(id) on delete cascade,
+  asset_id     uuid not null references assets(id),
+  symbol_id    uuid not null references symbols(id),
+  amount       numeric not null,
+  value_try    numeric,   -- asset value in TRY at snapshot time
+  value_usd    numeric,   -- asset value in USD at snapshot time (null if USD/TRY rate unavailable)
+  value_eur    numeric,   -- asset value in EUR at snapshot time (null if EUR/TRY rate unavailable)
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()  -- mutable: reserved for future snapshot-editing feature
 );
 ```
 

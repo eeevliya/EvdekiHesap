@@ -28,8 +28,9 @@ interface SnapshotAssetInput {
   assetId: string
   symbolId: string
   amount: number
-  exchangeRate: number
-  valueInTry: number
+  valueTry: number
+  valueUsd: number | null
+  valueEur: number | null
 }
 
 // ─── Core snapshot logic ──────────────────────────────────────────────────────
@@ -63,15 +64,13 @@ export async function createSnapshot(
   // ── Load household ──────────────────────────────────────────────────────
   const { data: household, error: hErr } = await supabase
     .from('households')
-    .select('id, display_currency')
+    .select('id')
     .eq('id', householdId)
     .single()
 
   if (hErr || !household) {
     throw new Error(`Household not found: ${hErr?.message ?? 'no data'}`)
   }
-
-  const displayCurrency: string = household.display_currency
 
   // ── Load all assets with their symbols ─────────────────────────────────
   const { data: assets, error: aErr } = await supabase
@@ -159,30 +158,24 @@ export async function createSnapshot(
       valueInTry = amount * rate
     }
 
+    const valueUsd = usdTry && usdTry > 0 ? valueInTry / usdTry : null
+    const valueEur = eurTry && eurTry > 0 ? valueInTry / eurTry : null
+
     netWorthTry += valueInTry
     snapshotAssets.push({
       assetId: asset.id,
       symbolId: asset.symbol_id,
       amount,
-      exchangeRate: rate,
-      valueInTry,
+      valueTry: valueInTry,
+      valueUsd,
+      valueEur,
     })
   }
 
   const netWorthUsd = usdTry && usdTry > 0 ? netWorthTry / usdTry : null
   const netWorthEur = eurTry && eurTry > 0 ? netWorthTry / eurTry : null
 
-  // ── Display currency conversion rate ────────────────────────────────────
-  let displayFiatTryRate: number
-  if (displayCurrency === 'USD') {
-    displayFiatTryRate = usdTry ?? 1
-  } else if (displayCurrency === 'EUR') {
-    displayFiatTryRate = eurTry ?? 1
-  } else {
-    displayFiatTryRate = 1 // TRY — no conversion needed
-  }
-
-  // ── Insert snapshot row ─────────────────────────────────────────────────
+  // ── Insert snapshot row ──────────────────────────────────────────────────
   const { data: snapshot, error: sErr } = await supabase
     .from('snapshots')
     .insert({
@@ -208,9 +201,9 @@ export async function createSnapshot(
         asset_id: sa.assetId,
         symbol_id: sa.symbolId,
         amount: sa.amount,
-        exchange_rate: sa.exchangeRate,
-        value_in_display_currency:
-          displayFiatTryRate > 0 ? sa.valueInTry / displayFiatTryRate : sa.valueInTry,
+        value_try: sa.valueTry,
+        value_usd: sa.valueUsd,
+        value_eur: sa.valueEur,
       }))
     )
     if (saErr) throw new Error(`Failed to insert snapshot_assets: ${saErr.message}`)

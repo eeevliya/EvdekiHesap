@@ -101,6 +101,7 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 | Last completed slice | Slice 5 — Snapshots (snapshot_assets schema revised: exchange_rate + value_in_display_currency dropped; value_try/usd/eur added) |
 | Next slice | Slice 6 — Dashboard |
 | Known issues | `tefas-crawler` package does not exist on npm — tefas.ts uses direct HTTP to tefas.gov.tr instead. `COLLECTAPI_ENABLED=false` in .env.local — gold fetches skipped locally until Google Sheets is decommissioned. |
+| Cron scheduling | Vercel Hobby plan only allows once-daily crons. Both cron routes (`/api/cron/price-fetch`, `/api/cron/snapshot`) are triggered externally via cron-job.org. `vercel.json` has no cron definitions. `CRON_SECRET` header check remains in place. |
 | Technical plan | `.claude/TECHNICAL_PLAN.md` (moved from repo root) |
 | Technical plan approved | Yes (v1.2, 2026-03-29) |
 | PM testing hub | `/tests` — lists all testable routes grouped by slice |

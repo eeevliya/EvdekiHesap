@@ -37,7 +37,14 @@ export default function TestsPage() {
       ],
     },
     {
-      slice: "Slice 5 — Dashboard",
+      slice: "Slice 5 — Snapshots",
+      routes: [
+        { path: "/settings/snapshots", label: "Snapshot history (Take Snapshot Now button)" },
+        { path: "/api/cron/snapshot", label: "Snapshot cron route (GET, requires CRON_SECRET header in prod)" },
+      ],
+    },
+    {
+      slice: "Slice 6 — Dashboard",
       routes: [{ path: "/dashboard", label: "Portfolio dashboard" }],
     },
   ];

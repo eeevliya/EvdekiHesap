@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import React, { useState, useTransition } from 'react'
 import { triggerManualSnapshot, getSnapshotAssets } from '@/lib/actions/snapshots'
 import type { SnapshotAssetDetail } from '@/lib/actions/snapshots'
 import { useRouter } from 'next/navigation'
@@ -333,10 +333,9 @@ export default function SnapshotHistory({ householdId, displayCurrency, snapshot
                   Array.from(expandedGroups).filter((k) => k.startsWith(`${snap.id}:`)).map((k) => k.split(':')[1])
                 )
                 return (
-                  <>
+                  <React.Fragment key={snap.id}>
                     {/* Snapshot summary row */}
                     <tr
-                      key={snap.id}
                       onClick={() => toggleSnapshot(snap.id)}
                       style={{
                         borderBottom: isExpanded ? 'none' : '1px solid #f3f4f6',
@@ -383,7 +382,7 @@ export default function SnapshotHistory({ householdId, displayCurrency, snapshot
                         onToggleGroup={(accountId) => toggleGroup(snap.id, accountId)}
                       />
                     )}
-                  </>
+                  </React.Fragment>
                 )
               })}
             </tbody>

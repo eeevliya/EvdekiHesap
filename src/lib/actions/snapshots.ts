@@ -222,7 +222,98 @@ export async function createSnapshot(
   }
 }
 
-// ─── Server Action ────────────────────────────────────────────────────────────
+// ─── Server Actions ───────────────────────────────────────────────────────────
+
+export interface SnapshotAssetDetail {
+  id: string
+  assetId: string
+  symbolId: string
+  symbolCode: string
+  symbolName: string | null
+  symbolType: string
+  amount: number
+  valueTry: number | null
+  valueUsd: number | null
+  valueEur: number | null
+}
+
+/**
+ * Fetch asset-level detail for a single snapshot.
+ * Callable by any authenticated member of the household that owns the snapshot.
+ */
+export async function getSnapshotAssets(
+  snapshotId: string
+): Promise<ActionResult<SnapshotAssetDetail[]>> {
+  const supabase = await createServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return { success: false, error: 'Not authenticated' }
+
+  // Confirm snapshot exists and belongs to a household the user is a member of
+  const { data: snapshot } = await supabase
+    .from('snapshots')
+    .select('household_id')
+    .eq('id', snapshotId)
+    .single()
+
+  if (!snapshot) return { success: false, error: 'Snapshot not found' }
+
+  const { data: membership } = await supabase
+    .from('household_members')
+    .select('id')
+    .eq('household_id', snapshot.household_id)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!membership) return { success: false, error: 'Not a member of this household' }
+
+  const { data: rows, error } = await supabase
+    .from('snapshot_assets')
+    .select(`
+      id,
+      asset_id,
+      symbol_id,
+      amount,
+      value_try,
+      value_usd,
+      value_eur,
+      symbol:symbols ( code, name, type )
+    `)
+    .eq('snapshot_id', snapshotId)
+    .order('value_try', { ascending: false })
+
+  if (error) return { success: false, error: error.message }
+
+  type RawRow = {
+    id: string
+    asset_id: string
+    symbol_id: string
+    amount: number
+    value_try: number | null
+    value_usd: number | null
+    value_eur: number | null
+    symbol: { code: string; name: string | null; type: string } | null
+  }
+
+  const details: SnapshotAssetDetail[] = ((rows ?? []) as unknown as RawRow[]).map((r) => ({
+    id: r.id,
+    assetId: r.asset_id,
+    symbolId: r.symbol_id,
+    symbolCode: r.symbol?.code ?? '—',
+    symbolName: r.symbol?.name ?? null,
+    symbolType: r.symbol?.type ?? '',
+    amount: Number(r.amount),
+    valueTry: r.value_try != null ? Number(r.value_try) : null,
+    valueUsd: r.value_usd != null ? Number(r.value_usd) : null,
+    valueEur: r.value_eur != null ? Number(r.value_eur) : null,
+  }))
+
+  return { success: true, data: details }
+}
+
+
 
 /**
  * Manual "Take Snapshot Now" trigger.

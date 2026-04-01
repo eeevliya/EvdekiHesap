@@ -20,6 +20,8 @@ interface Props {
   snapshots: SnapshotRow[]
 }
 
+// ─── Formatters ───────────────────────────────────────────────────────────────
+
 function fmt(value: number | null, currency: string): string {
   if (value == null) return '—'
   return new Intl.NumberFormat('en-US', {
@@ -42,112 +44,161 @@ function fmtDate(iso: string): string {
 }
 
 function fmtAmount(value: number): string {
-  // Show up to 8 decimal places but trim trailing zeros
   return new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 8,
   }).format(value)
 }
 
-// ─── Asset detail sub-table ───────────────────────────────────────────────────
+// ─── Account group ────────────────────────────────────────────────────────────
 
-function AssetDetailTable({
+interface AccountGroup {
+  accountId: string
+  accountName: string
+  assets: SnapshotAssetDetail[]
+  totalTry: number
+  totalUsd: number | null
+  totalEur: number | null
+}
+
+function groupByAccount(assets: SnapshotAssetDetail[]): AccountGroup[] {
+  const map = new Map<string, AccountGroup>()
+
+  for (const a of assets) {
+    let group = map.get(a.accountId)
+    if (!group) {
+      group = { accountId: a.accountId, accountName: a.accountName, assets: [], totalTry: 0, totalUsd: null, totalEur: null }
+      map.set(a.accountId, group)
+    }
+    group.assets.push(a)
+    group.totalTry += a.valueTry ?? 0
+    if (a.valueUsd != null) group.totalUsd = (group.totalUsd ?? 0) + a.valueUsd
+    if (a.valueEur != null) group.totalEur = (group.totalEur ?? 0) + a.valueEur
+  }
+
+  // Sort groups by total TRY descending
+  return Array.from(map.values()).sort((a, b) => b.totalTry - a.totalTry)
+}
+
+// ─── Asset rows ───────────────────────────────────────────────────────────────
+
+function AccountGroupRows({
+  group,
+  isGroupExpanded,
+  onToggle,
+}: {
+  group: AccountGroup
+  isGroupExpanded: boolean
+  onToggle: () => void
+}) {
+  return (
+    <>
+      {/* Account header row */}
+      <tr
+        onClick={onToggle}
+        style={{ cursor: 'pointer', background: isGroupExpanded ? '#f0f9ff' : '#f8fafc', borderBottom: '1px solid #e5e7eb' }}
+      >
+        <td style={{ padding: '8px 12px 8px 40px', color: '#6b7280', fontSize: 12, userSelect: 'none', whiteSpace: 'nowrap' }}>
+          {isGroupExpanded ? '▾' : '▸'}
+        </td>
+        <td colSpan={2} style={{ padding: '8px 12px', fontWeight: 600, color: '#374151', fontSize: 13 }}>
+          {group.accountName}
+        </td>
+        <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: 13, color: '#374151' }}>
+          {fmt(group.totalTry, 'TRY')}
+        </td>
+        <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: 13, color: '#374151' }}>
+          {fmt(group.totalUsd, 'USD')}
+        </td>
+        <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: 13, color: '#374151' }}>
+          {fmt(group.totalEur, 'EUR')}
+        </td>
+      </tr>
+
+      {/* Asset rows within this account */}
+      {isGroupExpanded && group.assets.map((a) => (
+        <tr key={a.id} style={{ borderBottom: '1px solid #f1f5f9', background: '#fff' }}>
+          <td style={{ padding: '7px 12px 7px 60px', color: '#374151', fontWeight: 600, fontSize: 13 }} colSpan={1}>
+            {a.symbolCode}
+          </td>
+          <td style={{ padding: '7px 12px', color: '#6b7280', fontSize: 13 }}>
+            {a.symbolName ?? ''}
+          </td>
+          <td style={{ padding: '7px 12px', color: '#6b7280', fontSize: 12 }}>
+            {a.symbolType.replace(/_/g, ' ')}
+          </td>
+          <td style={{ padding: '7px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#374151', fontSize: 13 }}>
+            {fmtAmount(a.amount)} → {fmt(a.valueTry, 'TRY')}
+          </td>
+          <td style={{ padding: '7px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#374151', fontSize: 13 }}>
+            {fmt(a.valueUsd, 'USD')}
+          </td>
+          <td style={{ padding: '7px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#374151', fontSize: 13 }}>
+            {fmt(a.valueEur, 'EUR')}
+          </td>
+        </tr>
+      ))}
+    </>
+  )
+}
+
+// ─── Snapshot detail section ──────────────────────────────────────────────────
+
+function SnapshotDetail({
+  snapshotId,
   assets,
   loading,
   error,
+  expandedGroups,
+  onToggleGroup,
 }: {
+  snapshotId: string
   assets: SnapshotAssetDetail[] | null
   loading: boolean
   error: string | null
+  expandedGroups: Set<string>
+  onToggleGroup: (accountId: string) => void
 }) {
   if (loading) {
     return (
       <tr>
-        <td colSpan={6} style={{ padding: '12px 24px', color: '#6b7280', fontSize: 13, fontStyle: 'italic' }}>
-          Loading assets…
+        <td colSpan={6} style={{ padding: '12px 40px', color: '#6b7280', fontSize: 13, fontStyle: 'italic', background: '#f8fafc' }}>
+          Loading…
         </td>
       </tr>
     )
   }
-
   if (error) {
     return (
       <tr>
-        <td colSpan={6} style={{ padding: '12px 24px', color: '#dc2626', fontSize: 13 }}>
+        <td colSpan={6} style={{ padding: '12px 40px', color: '#dc2626', fontSize: 13, background: '#fef2f2' }}>
           {error}
         </td>
       </tr>
     )
   }
-
   if (!assets || assets.length === 0) {
     return (
       <tr>
-        <td colSpan={6} style={{ padding: '12px 24px', color: '#6b7280', fontSize: 13 }}>
+        <td colSpan={6} style={{ padding: '12px 40px', color: '#6b7280', fontSize: 13, background: '#f8fafc' }}>
           No asset data recorded for this snapshot.
         </td>
       </tr>
     )
   }
 
+  const groups = groupByAccount(assets)
   return (
-    <tr>
-      <td colSpan={6} style={{ padding: 0 }}>
-        <div style={{ background: '#f8fafc', borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <th style={{ textAlign: 'left', padding: '6px 12px 6px 40px', color: '#9ca3af', fontWeight: 600 }}>
-                  Symbol
-                </th>
-                <th style={{ textAlign: 'left', padding: '6px 12px', color: '#9ca3af', fontWeight: 600 }}>
-                  Type
-                </th>
-                <th style={{ textAlign: 'right', padding: '6px 12px', color: '#9ca3af', fontWeight: 600 }}>
-                  Amount
-                </th>
-                <th style={{ textAlign: 'right', padding: '6px 12px', color: '#9ca3af', fontWeight: 600 }}>
-                  Value (TRY)
-                </th>
-                <th style={{ textAlign: 'right', padding: '6px 12px', color: '#9ca3af', fontWeight: 600 }}>
-                  Value (USD)
-                </th>
-                <th style={{ textAlign: 'right', padding: '6px 12px', color: '#9ca3af', fontWeight: 600 }}>
-                  Value (EUR)
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {assets.map((a) => (
-                <tr key={a.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '7px 12px 7px 40px', color: '#111827', fontWeight: 600 }}>
-                    {a.symbolCode}
-                    {a.symbolName && (
-                      <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 6 }}>{a.symbolName}</span>
-                    )}
-                  </td>
-                  <td style={{ padding: '7px 12px', color: '#6b7280' }}>
-                    {a.symbolType.replace('_', ' ')}
-                  </td>
-                  <td style={{ padding: '7px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#374151' }}>
-                    {fmtAmount(a.amount)}
-                  </td>
-                  <td style={{ padding: '7px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#374151' }}>
-                    {fmt(a.valueTry, 'TRY')}
-                  </td>
-                  <td style={{ padding: '7px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#374151' }}>
-                    {fmt(a.valueUsd, 'USD')}
-                  </td>
-                  <td style={{ padding: '7px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#374151' }}>
-                    {fmt(a.valueEur, 'EUR')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </td>
-    </tr>
+    <>
+      {groups.map((group) => (
+        <AccountGroupRows
+          key={`${snapshotId}-${group.accountId}`}
+          group={group}
+          isGroupExpanded={expandedGroups.has(group.accountId)}
+          onToggle={() => onToggleGroup(group.accountId)}
+        />
+      ))}
+    </>
   )
 }
 
@@ -156,27 +207,25 @@ function AssetDetailTable({
 export default function SnapshotHistory({ householdId, displayCurrency, snapshots }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [lastResult, setLastResult] = useState<string | null>(null)
 
-  // Expanded snapshot IDs
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  // Which snapshot rows are expanded
+  const [expandedSnapshots, setExpandedSnapshots] = useState<Set<string>>(new Set())
   // Cached asset detail per snapshot ID
   const [assetCache, setAssetCache] = useState<Map<string, SnapshotAssetDetail[]>>(new Map())
-  // Loading state per snapshot ID
+  // Loading / fetch-error state per snapshot
   const [loadingId, setLoadingId] = useState<string | null>(null)
-  // Per-snapshot fetch error
   const [fetchError, setFetchError] = useState<Map<string, string>>(new Map())
+  // Which account groups are expanded, keyed by `${snapshotId}:${accountId}`
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
-  async function toggleExpand(snapshotId: string) {
-    if (expanded.has(snapshotId)) {
-      setExpanded((prev) => { const next = new Set(prev); next.delete(snapshotId); return next })
+  async function toggleSnapshot(snapshotId: string) {
+    if (expandedSnapshots.has(snapshotId)) {
+      setExpandedSnapshots((prev) => { const n = new Set(prev); n.delete(snapshotId); return n })
       return
     }
-
-    setExpanded((prev) => new Set(prev).add(snapshotId))
-
-    // Already cached — no fetch needed
+    setExpandedSnapshots((prev) => new Set(prev).add(snapshotId))
     if (assetCache.has(snapshotId)) return
 
     setLoadingId(snapshotId)
@@ -190,8 +239,17 @@ export default function SnapshotHistory({ householdId, displayCurrency, snapshot
     }
   }
 
+  function toggleGroup(snapshotId: string, accountId: string) {
+    const key = `${snapshotId}:${accountId}`
+    setExpandedGroups((prev) => {
+      const n = new Set(prev)
+      if (n.has(key)) { n.delete(key) } else { n.add(key) }
+      return n
+    })
+  }
+
   function handleTakeSnapshot() {
-    setError(null)
+    setActionError(null)
     setLastResult(null)
     startTransition(async () => {
       const result = await triggerManualSnapshot(householdId)
@@ -206,7 +264,7 @@ export default function SnapshotHistory({ householdId, displayCurrency, snapshot
         setLastResult(`Snapshot taken. Net worth: ${worth}`)
         router.refresh()
       } else {
-        setError(result.error)
+        setActionError(result.error)
       }
     })
   }
@@ -217,7 +275,7 @@ export default function SnapshotHistory({ householdId, displayCurrency, snapshot
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Snapshot History</h1>
           <p style={{ color: '#6b7280', marginTop: 4, marginBottom: 0, fontSize: 14 }}>
-            Portfolio net worth snapshots. Scheduled every 6 hours; trigger manually below. Click a row to expand assets.
+            Portfolio net worth snapshots. Scheduled every 6 hours; trigger manually below. Click a row to expand.
           </p>
         </div>
         <button
@@ -239,12 +297,11 @@ export default function SnapshotHistory({ householdId, displayCurrency, snapshot
         </button>
       </div>
 
-      {error && (
+      {actionError && (
         <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '10px 14px', color: '#dc2626', marginBottom: 16, fontSize: 14 }}>
-          {error}
+          {actionError}
         </div>
       )}
-
       {lastResult && (
         <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, padding: '10px 14px', color: '#16a34a', marginBottom: 16, fontSize: 14 }}>
           {lastResult}
@@ -270,18 +327,21 @@ export default function SnapshotHistory({ householdId, displayCurrency, snapshot
             </thead>
             <tbody>
               {snapshots.map((snap) => {
-                const isExpanded = expanded.has(snap.id)
+                const isExpanded = expandedSnapshots.has(snap.id)
                 const isLoading = loadingId === snap.id
+                const groupsForSnapshot = new Set(
+                  Array.from(expandedGroups).filter((k) => k.startsWith(`${snap.id}:`)).map((k) => k.split(':')[1])
+                )
                 return (
                   <>
+                    {/* Snapshot summary row */}
                     <tr
                       key={snap.id}
-                      onClick={() => toggleExpand(snap.id)}
+                      onClick={() => toggleSnapshot(snap.id)}
                       style={{
                         borderBottom: isExpanded ? 'none' : '1px solid #f3f4f6',
                         cursor: 'pointer',
                         background: isExpanded ? '#eff6ff' : '#fff',
-                        transition: 'background 0.1s',
                       }}
                     >
                       <td style={{ padding: '10px 12px', color: '#9ca3af', fontSize: 12, userSelect: 'none' }}>
@@ -311,11 +371,16 @@ export default function SnapshotHistory({ householdId, displayCurrency, snapshot
                         {fmt(snap.netWorthEur, 'EUR')}
                       </td>
                     </tr>
+
+                    {/* Account groups + asset detail rows */}
                     {isExpanded && (
-                      <AssetDetailTable
+                      <SnapshotDetail
+                        snapshotId={snap.id}
                         assets={assetCache.get(snap.id) ?? null}
                         loading={isLoading}
                         error={fetchError.get(snap.id) ?? null}
+                        expandedGroups={groupsForSnapshot}
+                        onToggleGroup={(accountId) => toggleGroup(snap.id, accountId)}
                       />
                     )}
                   </>

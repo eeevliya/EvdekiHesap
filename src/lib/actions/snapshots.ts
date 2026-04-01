@@ -231,6 +231,8 @@ export interface SnapshotAssetDetail {
   symbolCode: string
   symbolName: string | null
   symbolType: string
+  accountId: string
+  accountName: string
   amount: number
   valueTry: number | null
   valueUsd: number | null
@@ -279,7 +281,8 @@ export async function getSnapshotAssets(
       value_try,
       value_usd,
       value_eur,
-      symbol:symbols ( code, name, type )
+      symbol:symbols ( code, name, type ),
+      asset:assets ( account_id, account:accounts ( id, name ) )
     `)
     .eq('snapshot_id', snapshotId)
     .order('value_try', { ascending: false })
@@ -295,6 +298,7 @@ export async function getSnapshotAssets(
     value_usd: number | null
     value_eur: number | null
     symbol: { code: string; name: string | null; type: string } | null
+    asset: { account_id: string; account: { id: string; name: string } | null } | null
   }
 
   const details: SnapshotAssetDetail[] = ((rows ?? []) as unknown as RawRow[]).map((r) => ({
@@ -304,6 +308,8 @@ export async function getSnapshotAssets(
     symbolCode: r.symbol?.code ?? '—',
     symbolName: r.symbol?.name ?? null,
     symbolType: r.symbol?.type ?? '',
+    accountId: r.asset?.account?.id ?? r.asset?.account_id ?? '',
+    accountName: r.asset?.account?.name ?? 'Unknown account',
     amount: Number(r.amount),
     valueTry: r.value_try != null ? Number(r.value_try) : null,
     valueUsd: r.value_usd != null ? Number(r.value_usd) : null,

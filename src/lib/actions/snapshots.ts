@@ -24,6 +24,16 @@ interface RateRow {
   fetched_at: string
 }
 
+interface TxRow {
+  type: string
+  to_asset_id: string | null
+  from_asset_id: string | null
+  to_amount: number | null
+  from_amount: number | null
+  fee_amount: number | null
+  fee_side: string | null
+}
+
 interface SnapshotAssetInput {
   assetId: string
   symbolId: string
@@ -31,6 +41,9 @@ interface SnapshotAssetInput {
   valueTry: number
   valueUsd: number | null
   valueEur: number | null
+  gainLossTry: number | null
+  gainLossUsd: number | null
+  gainLossEur: number | null
 }
 
 // ─── Core snapshot logic ──────────────────────────────────────────────────────
@@ -111,6 +124,56 @@ async function calculateSnapshotData(
   const usdTry = usdSymbolId ? (rateBySymbol.get(usdSymbolId) ?? null) : null
   const eurTry = eurSymbolId ? (rateBySymbol.get(eurSymbolId) ?? null) : null
 
+  // ── Build asset → TRY rate map (same PCF logic as value computation) ────
+  const assetRateTryMap = new Map<string, number>()
+  for (const asset of assetRows) {
+    const rate = rateBySymbol.get(asset.symbol_id)
+    if (rate == null) continue
+    const pcf = asset.symbol.primary_conversion_fiat
+    let rateTry: number
+    if (pcf === 'USD') {
+      if (usdTry == null) continue
+      rateTry = rate * usdTry
+    } else if (pcf === 'EUR') {
+      if (eurTry == null) continue
+      rateTry = rate * eurTry
+    } else {
+      rateTry = rate
+    }
+    assetRateTryMap.set(asset.id, rateTry)
+  }
+
+  // ── Fetch qualifying transactions for G/L computation ───────────────────
+  const { data: txns, error: tErr } = await supabase
+    .from('transactions')
+    .select('type, to_asset_id, from_asset_id, to_amount, from_amount, fee_amount, fee_side')
+    .eq('household_id', householdId)
+    .in('type', ['trade', 'interest'])
+
+  if (tErr) throw new Error(`Failed to load transactions: ${tErr.message}`)
+
+  // ── Accumulate G/L (in TRY) by to_asset_id ──────────────────────────────
+  const glByAsset = new Map<string, number>()
+  for (const tx of (txns ?? []) as TxRow[]) {
+    if (tx.type === 'interest') {
+      if (!tx.to_asset_id || tx.to_amount == null) continue
+      const toRate = assetRateTryMap.get(tx.to_asset_id)
+      if (toRate == null) continue
+      const gl = Number(tx.to_amount) * toRate
+      glByAsset.set(tx.to_asset_id, (glByAsset.get(tx.to_asset_id) ?? 0) + gl)
+    } else if (tx.type === 'trade') {
+      if (!tx.to_asset_id || !tx.from_asset_id || tx.to_amount == null || tx.from_amount == null) continue
+      const toRate = assetRateTryMap.get(tx.to_asset_id)
+      const fromRate = assetRateTryMap.get(tx.from_asset_id)
+      if (toRate == null || fromRate == null) continue
+      const feeRate = tx.fee_side === 'to' ? toRate : tx.fee_side === 'from' ? fromRate : 0
+      const gl = Number(tx.to_amount) * toRate
+        - Number(tx.from_amount) * fromRate
+        - Number(tx.fee_amount ?? 0) * feeRate
+      glByAsset.set(tx.to_asset_id, (glByAsset.get(tx.to_asset_id) ?? 0) + gl)
+    }
+  }
+
   // ── Calculate per-asset values ──────────────────────────────────────────
   let netWorthTry = 0
   const snapshotAssets: SnapshotAssetInput[] = []
@@ -140,6 +203,10 @@ async function calculateSnapshotData(
     const valueUsd = usdTry && usdTry > 0 ? valueInTry / usdTry : null
     const valueEur = eurTry && eurTry > 0 ? valueInTry / eurTry : null
 
+    const gainLossTry = glByAsset.get(asset.id) ?? null
+    const gainLossUsd = gainLossTry != null && usdTry ? gainLossTry / usdTry : null
+    const gainLossEur = gainLossTry != null && eurTry ? gainLossTry / eurTry : null
+
     netWorthTry += valueInTry
     snapshotAssets.push({
       assetId: asset.id,
@@ -148,6 +215,9 @@ async function calculateSnapshotData(
       valueTry: valueInTry,
       valueUsd,
       valueEur,
+      gainLossTry,
+      gainLossUsd,
+      gainLossEur,
     })
   }
 
@@ -225,6 +295,9 @@ export async function createSnapshot(
         value_try: sa.valueTry,
         value_usd: sa.valueUsd,
         value_eur: sa.valueEur,
+        gain_loss_try: sa.gainLossTry,
+        gain_loss_usd: sa.gainLossUsd,
+        gain_loss_eur: sa.gainLossEur,
       }))
     )
     if (saErr) throw new Error(`Failed to insert snapshot_assets: ${saErr.message}`)
@@ -445,6 +518,9 @@ export async function triggerManualSnapshot(
             value_try: sa.valueTry,
             value_usd: sa.valueUsd,
             value_eur: sa.valueEur,
+            gain_loss_try: sa.gainLossTry,
+            gain_loss_usd: sa.gainLossUsd,
+            gain_loss_eur: sa.gainLossEur,
           }))
         )
         if (saErr) throw new Error(`Failed to insert snapshot_assets: ${saErr.message}`)

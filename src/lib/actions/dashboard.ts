@@ -2,7 +2,7 @@
 
 import { createServerClient } from '@/lib/supabase/server'
 import type { DisplayCurrency, SymbolType } from '@/lib/types/domain'
-import { pctChange, cagr, daysBetween, gainLoss } from '@/lib/utils/calculations'
+import { pctChange, cagr, daysBetween } from '@/lib/utils/calculations'
 
 // ─── Output types ─────────────────────────────────────────────────────────────
 
@@ -224,53 +224,42 @@ export async function getDashboardData(): Promise<DashboardData | null> {
     }
   }
 
-  // ── Cost basis + first transaction date per asset ─────────────────────────
+  // ── First transaction date per asset + latest snapshot G/L ───────────────
   const assetIds = assetRows.map((a) => a.id)
   const firstTransactionMap = new Map<string, string>()
-  const costBasisMap = new Map<string, number>()
+  const glMap = new Map<string, number>()
 
-  if (assetIds.length > 0) {
-    const [firstTxnsResult, costBasisResult] = await Promise.all([
-      supabase
-        .from('transactions')
-        .select('to_asset_id, date')
-        .eq('household_id', householdId)
-        .in('to_asset_id', assetIds)
-        .order('date', { ascending: true }),
-      supabase
-        .from('transactions')
-        .select('to_asset_id, to_amount, exchange_rate, type')
-        .eq('household_id', householdId)
-        .in('type', ['deposit', 'interest', 'trade'])
-        .in('to_asset_id', assetIds),
-    ])
+  const latestSnapshotId = snapshotRows.at(-1)?.id ?? null
 
-    for (const t of (firstTxnsResult.data ?? []) as { to_asset_id: string | null; date: string }[]) {
-      if (t.to_asset_id && !firstTransactionMap.has(t.to_asset_id)) {
-        firstTransactionMap.set(t.to_asset_id, t.date)
-      }
-    }
+  const [firstTxnsResult, glResult] = await Promise.all([
+    assetIds.length > 0
+      ? supabase
+          .from('transactions')
+          .select('to_asset_id, date')
+          .eq('household_id', householdId)
+          .in('to_asset_id', assetIds)
+          .order('date', { ascending: true })
+      : Promise.resolve({ data: [] as { to_asset_id: string | null; date: string }[], error: null }),
+    latestSnapshotId
+      ? supabase
+          .from('snapshot_assets')
+          .select('asset_id, gain_loss_try, gain_loss_usd, gain_loss_eur')
+          .eq('snapshot_id', latestSnapshotId)
+      : Promise.resolve({ data: [] as { asset_id: string; gain_loss_try: number | null; gain_loss_usd: number | null; gain_loss_eur: number | null }[], error: null }),
+  ])
 
-    for (const t of (costBasisResult.data ?? []) as {
-      to_asset_id: string | null
-      to_amount: number | null
-      exchange_rate: number | null
-      type: string
-    }[]) {
-      if (!t.to_asset_id || t.to_amount == null) continue
-      if (t.type === 'interest') continue
-      const rate = t.exchange_rate ?? 0
-      const contribution = Number(t.to_amount) * Number(rate)
-      costBasisMap.set(t.to_asset_id, (costBasisMap.get(t.to_asset_id) ?? 0) + contribution)
+  for (const t of (firstTxnsResult.data ?? []) as { to_asset_id: string | null; date: string }[]) {
+    if (t.to_asset_id && !firstTransactionMap.has(t.to_asset_id)) {
+      firstTransactionMap.set(t.to_asset_id, t.date)
     }
   }
 
-  // Convert cost basis (always stored in TRY) to display currency
-  function costBasisToDisplay(costBasisTry: number | null): number | null {
-    if (costBasisTry == null) return null
-    if (displayCurrency === 'USD') return usdRate ? costBasisTry / usdRate : null
-    if (displayCurrency === 'EUR') return eurRate ? costBasisTry / eurRate : null
-    return costBasisTry
+  type GlRow = { asset_id: string; gain_loss_try: number | null; gain_loss_usd: number | null; gain_loss_eur: number | null }
+  for (const row of (glResult.data ?? []) as GlRow[]) {
+    const gl = displayCurrency === 'USD' ? row.gain_loss_usd
+             : displayCurrency === 'EUR' ? row.gain_loss_eur
+             : row.gain_loss_try
+    if (gl != null) glMap.set(row.asset_id, Number(gl))
   }
 
   // ── Compute live values per asset → net worth, breakdown, performance ─────
@@ -318,10 +307,11 @@ export async function getDashboardData(): Promise<DashboardData | null> {
       })
     }
 
-    const costBasisTry = costBasisMap.has(asset.id) ? costBasisMap.get(asset.id)! : null
-    const costBasis = costBasisToDisplay(costBasisTry)
-
-    const gl = gainLoss(currentValue, costBasis)
+    const gainLossAmount = glMap.get(asset.id) ?? null
+    const costBasis = gainLossAmount != null ? currentValue - gainLossAmount : null
+    const gainLossPct = costBasis != null && costBasis !== 0
+      ? (gainLossAmount! / costBasis) * 100
+      : null
     const firstDate = firstTransactionMap.get(asset.id) ?? null
     const days = firstDate ? daysBetween(firstDate, new Date().toISOString()) : null
     const cagrValue = costBasis != null && days != null
@@ -339,8 +329,8 @@ export async function getDashboardData(): Promise<DashboardData | null> {
       amount,
       currentValue,
       costBasis,
-      gainLossAmount: gl?.amount ?? null,
-      gainLossPct: gl?.pct ?? null,
+      gainLossAmount,
+      gainLossPct,
       cagrValue,
       firstTransactionDate: firstDate,
     })

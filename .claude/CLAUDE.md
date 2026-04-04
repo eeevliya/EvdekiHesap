@@ -83,7 +83,7 @@ The slice contract (shared types, API shapes, database schema) is defined in `.c
 The visual design, layout, navigation, and page composition for all slices from Slice 6 onward are governed by `.claude/UI_PLAN.md` (approved v1.0).
 
 - Read `UI_PLAN.md` alongside `TECHNICAL_PLAN.md` at the start of any UI-touching slice.
-- `.claude/ui-reference/` contains a read-only v0.app visual reference. Do not run it, merge its configs, or copy code verbatim from it — use it for visual reference only.
+- `.claude/ui-reference/` contains a read-only v0.app visual reference.
 - Route consolidations in effect: `/settings/household` and `/settings/members` redirect to `/household`; the Rates page lives at `/rates`.
 
 ---
@@ -118,9 +118,9 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 | Field | Value |
 |---|---|
-| Last completed slice | Slice 6 — Dashboard (AppShell, shared components, design system, dashboard page with net worth/chart/breakdown/performance cards) |
+| Last completed slice | Slice 6 + G/L amendment — Dashboard with snapshot-based G/L tracking (gain_loss_try/usd/eur on snapshot_assets; cost basis derived as current_value − gain_loss) |
 | Next slice | Slice 7 — Household Management UI Polish |
-| Known issues | `tefas-crawler` package does not exist on npm — tefas.ts uses direct HTTP to tefas.gov.tr instead. `COLLECTAPI_ENABLED=false` in .env.local — gold fetches skipped locally until Google Sheets is decommissioned. Cost basis computation is approximate (based on `exchange_rate` stored on deposit/trade transactions — cross-currency trades may show null). |
+| Known issues | `tefas-crawler` package does not exist on npm — tefas.ts uses direct HTTP to tefas.gov.tr instead. `COLLECTAPI_ENABLED=false` in .env.local — gold fetches skipped locally until Google Sheets is decommissioned. G/L is null for assets with no snapshot yet (new households before first snapshot). Migration `20260404000001_snapshot_assets_gain_loss.sql` must be applied to Supabase Cloud before G/L populates on new snapshots. |
 | Packages added | `recharts`, `@dnd-kit/core`, `@dnd-kit/sortable`, `geist` |
 | Cron scheduling | Vercel Hobby plan only allows once-daily crons. Both cron routes (`/api/cron/price-fetch`, `/api/cron/snapshot`) are triggered externally via cron-job.org. `vercel.json` has no cron definitions. `CRON_SECRET` header check remains in place. |
 | PRD | `PRD.md` v2.3 |

@@ -368,21 +368,34 @@ create index snapshots_household_taken_idx on snapshots (household_id, taken_at 
 ### 2.12 snapshot_assets
 
 ```sql
--- 00012_snapshot_assets.sql + 00013_snapshot_assets_values.sql
+-- 00012_snapshot_assets.sql + 00013_snapshot_assets_values.sql + 20260404000001_snapshot_assets_gain_loss.sql
 create table snapshot_assets (
-  id           uuid primary key default gen_random_uuid(),
-  snapshot_id  uuid not null references snapshots(id) on delete cascade,
-  household_id uuid not null references households(id) on delete cascade,
-  asset_id     uuid not null references assets(id),
-  symbol_id    uuid not null references symbols(id),
-  amount       numeric not null,
-  value_try    numeric,   -- asset value in TRY at snapshot time
-  value_usd    numeric,   -- asset value in USD at snapshot time (null if USD/TRY rate unavailable)
-  value_eur    numeric,   -- asset value in EUR at snapshot time (null if EUR/TRY rate unavailable)
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()  -- mutable: reserved for future snapshot-editing feature
+  id             uuid primary key default gen_random_uuid(),
+  snapshot_id    uuid not null references snapshots(id) on delete cascade,
+  household_id   uuid not null references households(id) on delete cascade,
+  asset_id       uuid not null references assets(id),
+  symbol_id      uuid not null references symbols(id),
+  amount         numeric not null,
+  value_try      numeric,        -- asset value in TRY at snapshot time
+  value_usd      numeric,        -- asset value in USD at snapshot time (null if USD/TRY rate unavailable)
+  value_eur      numeric,        -- asset value in EUR at snapshot time (null if EUR/TRY rate unavailable)
+  gain_loss_try  numeric,        -- cumulative G/L in TRY (null on legacy snapshots)
+  gain_loss_usd  numeric,        -- cumulative G/L in USD (null if USD/TRY rate unavailable)
+  gain_loss_eur  numeric,        -- cumulative G/L in EUR (null if EUR/TRY rate unavailable)
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()  -- mutable: reserved for future snapshot-editing feature
 );
 ```
+
+**G/L computation rules** (applied during snapshot creation):
+- Only `trade` and `interest` transactions contribute to G/L; `deposit`, `debit`, and `transfer` are excluded.
+- `interest`: `gl += to_amount × to_symbol_rate_try`
+- `trade`: `gl += (to_amount × to_rate_try) − (from_amount × from_rate_try) − (fee_amount × fee_rate_try)`
+  - `fee_rate_try = to_rate_try` if `fee_side = 'to'`, `from_rate_try` if `fee_side = 'from'`, `0` if no fee
+  - Trades where either leg has no available rate are skipped
+- G/L is accumulated per `to_asset_id` using snapshot-time rates from the same `rateBySymbol` map used for value computation
+- `gain_loss_usd = gain_loss_try / usd_try`, `gain_loss_eur = gain_loss_try / eur_try`
+- Dashboard reads G/L from the latest snapshot; cost basis is derived as `current_value − gain_loss`
 
 ### 2.13 Transaction RPC Functions (Atomicity)
 

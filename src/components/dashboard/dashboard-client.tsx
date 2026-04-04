@@ -23,6 +23,15 @@ export function DashboardClient({ data }: DashboardClientProps) {
       ),
     },
     {
+      id: 'performance-card',
+      content: (
+        <PerformanceCard
+          data={data.performance}
+          displayCurrency={data.netWorth.displayCurrency}
+        />
+      ),
+    },
+    {
       id: 'asset-breakdown',
       content: (
         <AssetBreakdownChart
@@ -37,15 +46,6 @@ export function DashboardClient({ data }: DashboardClientProps) {
         <PerformanceChart
           data={data.chartData}
           chartSymbols={data.chartSymbols}
-          displayCurrency={data.netWorth.displayCurrency}
-        />
-      ),
-    },
-    {
-      id: 'performance-card',
-      content: (
-        <PerformanceCard
-          data={data.performance}
           displayCurrency={data.netWorth.displayCurrency}
         />
       ),

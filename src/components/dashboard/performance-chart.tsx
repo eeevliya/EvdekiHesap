@@ -151,7 +151,7 @@ export function PerformanceChart({ data, chartSymbols, displayCurrency }: Perfor
                   type="monotone"
                   dataKey="netWorth"
                   name="Total"
-                  stroke="var(--color-accent)"
+                  stroke="oklch(0.80 0.16 195)"
                   strokeWidth={3}
                   dot={false}
                 />

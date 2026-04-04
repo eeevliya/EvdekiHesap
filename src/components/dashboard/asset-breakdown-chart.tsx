@@ -10,11 +10,11 @@ import type { AssetBreakdownSegment } from '@/lib/actions/dashboard'
 import type { DisplayCurrency } from '@/lib/types/domain'
 
 const CHART_COLORS = [
-  'var(--color-chart-1)',
-  'var(--color-chart-2)',
-  'var(--color-chart-3)',
-  'var(--color-chart-4)',
-  'var(--color-chart-5)',
+  'oklch(0.80 0.16 195)',
+  'oklch(0.65 0.18 270)',
+  'oklch(0.70 0.18 300)',
+  'oklch(0.75 0.15 155)',
+  'oklch(0.72 0.16 240)',
 ]
 
 // Map symbol codes to stable chart colors

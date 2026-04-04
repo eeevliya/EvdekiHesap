@@ -13,7 +13,7 @@ export function cagr(
   daysHeld: number
 ): number | null {
   if (!isFinite(currentValue) || !isFinite(costBasis) || !isFinite(daysHeld)) return null
-  if (costBasis <= 0 || daysHeld <= 0) return null
+  if (costBasis <= 0 || daysHeld < 1) return null
 
   const dailyRate = Math.pow(currentValue / costBasis, 1 / daysHeld) - 1
   return Math.pow(1 + dailyRate, 365) - 1

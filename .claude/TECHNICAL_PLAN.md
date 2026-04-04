@@ -1,8 +1,8 @@
 # TECHNICAL_PLAN.md — EvdekiHesap
 
 > **Status**: Approved
-> **Version**: 1.2
-> **Date**: 2026-03-29
+> **Version**: 1.3
+> **Date**: 2026-04-04
 >
 > This document is the stable slice contract. Do not modify it without explicit PM approval.
 > It defines: database schema, TypeScript domain types, Server Action signatures, folder structure, and slice breakdown.
@@ -1113,5 +1113,22 @@ function cagr(currentValue: number, costBasis: number, daysHeld: number): number
 **Testable outcome**: PM can build the APK, install it on their Android device, and use the full app including login, dashboard, and transaction entry.
 
 ---
+
+## 8. Clarifications
+
+Post-approval clarifications that refine slice behaviour without changing the slice contract structure.
+
+---
+
+### Manual Snapshot Window Logic (post-approval clarification, 2026-04-04)
+
+`triggerManualSnapshot` must implement window-based deduplication. Algorithm:
+
+1. Find the most recent `scheduled` snapshot for the household — its `taken_at` defines the current window start.
+2. Check for a `manual` snapshot with `taken_at` after that boundary.
+3. If found: update it in place (`taken_at`, net worth fields, `updated_at` only — never `id` or `created_at`), delete its `snapshot_assets` child rows and re-insert fresh ones.
+4. If not found: insert normally.
+
+Scheduled snapshots are entirely unaffected by this logic. If no scheduled snapshot exists, the insert path is always taken.
 
 *End of TECHNICAL_PLAN.md — awaiting PM review and approval.*

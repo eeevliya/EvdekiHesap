@@ -47,13 +47,14 @@ c:\Code\EvdekiHesap\
 │   │   │   │   ├── page.tsx
 │   │   │   │   └── new/
 │   │   │   │       └── page.tsx
+│   │   │   ├── household/
+│   │   │   │   └── page.tsx        ← consolidates /settings/household + /settings/members
+│   │   │   ├── rates/
+│   │   │   │   ├── page.tsx        ← new top-level route (rates table + conversion tool)
+│   │   │   │   └── symbols/
+│   │   │   │       └── page.tsx    ← symbol management (manager-only)
 │   │   │   └── settings/
-│   │   │       ├── household/
-│   │   │       │   └── page.tsx
-│   │   │       ├── members/
-│   │   │       │   └── page.tsx
-│   │   │       └── symbols/
-│   │   │           └── page.tsx
+│   │   │       └── page.tsx        ← personal account settings only
 │   │   ├── api/
 │   │   │   └── cron/
 │   │   │       ├── snapshot/
@@ -67,11 +68,26 @@ c:\Code\EvdekiHesap\
 │   ├── components/
 │   │   ├── ui/                     ← shadcn/ui generated components (do not hand-edit)
 │   │   ├── shared/
-│   │   │   ├── navbar.tsx
-│   │   │   ├── bottom-nav.tsx      ← mobile bottom navigation
-│   │   │   ├── loading-spinner.tsx
-│   │   │   └── error-message.tsx
+│   │   │   ├── app-shell.tsx       ← layout wrapper (sidebar + top-header + bottom-nav)
+│   │   │   ├── sidebar.tsx         ← desktop fixed left sidebar (220px)
+│   │   │   ├── bottom-nav.tsx      ← mobile fixed bottom navigation (5 items)
+│   │   │   ├── top-header.tsx      ← mobile sticky top header with kebab menu
+│   │   │   ├── page-header.tsx     ← page title + optional action button
+│   │   │   ├── card.tsx            ← custom card (NOT shadcn) — design system tokens
+│   │   │   ├── skeleton.tsx        ← shimmer loading placeholder
+│   │   │   ├── badge.tsx           ← variant badge (positive/negative/warning/accent)
+│   │   │   ├── mono-amount.tsx     ← monetary amount with font-mono + color
+│   │   │   ├── relative-time.tsx   ← "3 min ago" with exact tooltip
+│   │   │   ├── empty-state.tsx     ← icon + message + optional CTA
+│   │   │   ├── confirm-dialog.tsx  ← destructive action confirmation (AlertDialog)
+│   │   │   └── sign-out-button.tsx ← form wrapper for signOut server action
 │   │   ├── dashboard/
+│   │   │   ├── net-worth-card.tsx
+│   │   │   ├── asset-breakdown-chart.tsx
+│   │   │   ├── performance-chart.tsx
+│   │   │   ├── asset-performance-table.tsx
+│   │   │   ├── dashboard-grid.tsx  ← @dnd-kit sortable grid (desktop) / stack (mobile)
+│   │   │   └── dashboard-client.tsx ← client wrapper managing activeSymbol state
 │   │   ├── accounts/
 │   │   ├── transactions/
 │   │   ├── assets/
@@ -87,12 +103,13 @@ c:\Code\EvdekiHesap\
 │   │   │   ├── assets.ts
 │   │   │   ├── transactions.ts
 │   │   │   ├── symbols.ts
-│   │   │   └── snapshots.ts
+│   │   │   ├── snapshots.ts
+│   │   │   └── dashboard.ts        ← getDashboardData() — portfolio summary loader
 │   │   ├── types/
 │   │   │   ├── database.types.ts   ← Supabase CLI generated (regenerated on schema changes)
 │   │   │   └── domain.ts           ← hand-written domain types (the stable contract)
 │   │   ├── utils/
-│   │   │   ├── calculations.ts     ← CAGR, gain/loss, cost basis
+│   │   │   ├── calculations.ts     ← CAGR, gain/loss, pctChange, daysBetween
 │   │   │   └── format.ts           ← currency and number formatting
 │   │   └── price-fetchers/
 │   │       ├── index.ts            ← dispatch by symbol type

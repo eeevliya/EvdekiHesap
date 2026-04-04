@@ -1,26 +1,92 @@
 @import "tailwindcss";
 
-@theme {
-  --color-background: hsl(0 0% 100%);
-  --color-foreground: hsl(222.2 84% 4.9%);
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(222.2 84% 4.9%);
-  --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(222.2 84% 4.9%);
-  --color-primary: hsl(221.2 83.2% 53.3%);
-  --color-primary-foreground: hsl(210 40% 98%);
-  --color-secondary: hsl(210 40% 96.1%);
-  --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
-  --color-muted: hsl(210 40% 96.1%);
-  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
-  --color-accent: hsl(210 40% 96.1%);
-  --color-accent-foreground: hsl(222.2 47.4% 11.2%);
-  --color-destructive: hsl(0 84.2% 60.2%);
-  --color-destructive-foreground: hsl(210 40% 98%);
-  --color-border: hsl(214.3 31.8% 91.4%);
-  --color-input: hsl(214.3 31.8% 91.4%);
-  --color-ring: hsl(221.2 83.2% 53.3%);
-  --radius: 0.5rem;
+/* ─── Design System Tokens ──────────────────────────────────────────────────── */
+
+:root {
+  /* Background layers */
+  --color-bg-base:        oklch(0.22 0.04 255);
+  --color-bg-card:        oklch(0.14 0.05 255);
+  --color-bg-card-hover:  oklch(0.17 0.05 255);
+  --color-bg-input:       oklch(0.18 0.04 255);
+  --color-bg-sidebar:     oklch(0.12 0.05 255);
+
+  /* Foreground */
+  --color-fg-primary:     oklch(0.98 0 0);
+  --color-fg-secondary:   oklch(0.70 0.02 255);
+  --color-fg-disabled:    oklch(0.45 0.02 255);
+
+  /* Accent — vivid cyan */
+  --color-accent:         oklch(0.80 0.16 195);
+  --color-accent-dim:     oklch(0.65 0.12 195);
+  --color-accent-subtle:  oklch(0.22 0.05 195);
+
+  /* Semantic */
+  --color-positive:       oklch(0.75 0.15 155);
+  --color-negative:       oklch(0.65 0.18 25);
+  --color-warning:        oklch(0.80 0.14 75);
+  --color-neutral:        oklch(0.70 0.02 255);
+
+  /* Chart palette */
+  --color-chart-1:        oklch(0.80 0.16 195);
+  --color-chart-2:        oklch(0.65 0.18 270);
+  --color-chart-3:        oklch(0.70 0.18 300);
+  --color-chart-4:        oklch(0.75 0.15 155);
+  --color-chart-5:        oklch(0.72 0.16 240);
+
+  /* Borders */
+  --color-border:         oklch(0.28 0.04 255);
+  --color-border-strong:  oklch(0.38 0.04 255);
+
+  /* Shadows */
+  --shadow-card:          0 8px 32px oklch(0 0 0 / 0.40);
+  --shadow-elevated:      0 16px 48px oklch(0 0 0 / 0.55);
+
+  /* Tailwind compat (used by shadcn) */
+  --background:           oklch(0.22 0.04 255);
+  --foreground:           oklch(0.98 0 0);
+  --card:                 oklch(0.14 0.05 255);
+  --card-foreground:      oklch(0.98 0 0);
+  --popover:              oklch(0.14 0.05 255);
+  --popover-foreground:   oklch(0.98 0 0);
+  --primary:              oklch(0.80 0.16 195);
+  --primary-foreground:   oklch(0.12 0.05 255);
+  --secondary:            oklch(0.18 0.04 255);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted:                oklch(0.18 0.04 255);
+  --muted-foreground:     oklch(0.70 0.02 255);
+  --accent:               oklch(0.22 0.05 195);
+  --accent-foreground:    oklch(0.80 0.16 195);
+  --destructive:          oklch(0.65 0.18 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border:               oklch(0.28 0.04 255);
+  --input:                oklch(0.18 0.04 255);
+  --ring:                 oklch(0.80 0.16 195);
+  --radius:               0.75rem;
+}
+
+@theme inline {
+  --color-background:           var(--background);
+  --color-foreground:           var(--foreground);
+  --color-card:                 var(--card);
+  --color-card-foreground:      var(--card-foreground);
+  --color-popover:              var(--popover);
+  --color-popover-foreground:   var(--popover-foreground);
+  --color-primary:              var(--primary);
+  --color-primary-foreground:   var(--primary-foreground);
+  --color-secondary:            var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted:                var(--muted);
+  --color-muted-foreground:     var(--muted-foreground);
+  --color-accent:               var(--accent);
+  --color-accent-foreground:    var(--accent-foreground);
+  --color-destructive:          var(--destructive);
+  --color-border:               var(--border);
+  --color-input:                var(--input);
+  --color-ring:                 var(--ring);
+  --radius-sm:                  calc(var(--radius) - 4px);
+  --radius-md:                  calc(var(--radius) - 2px);
+  --radius-lg:                  var(--radius);
+  --radius-xl:                  calc(var(--radius) + 4px);
 }
 
 @layer base {
@@ -28,7 +94,26 @@
     border-color: var(--color-border);
   }
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: var(--color-bg-base);
+    color: var(--color-fg-primary);
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   }
+}
+
+/* ─── Skeleton shimmer animation ──────────────────────────────────────────── */
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-card) 25%,
+    var(--color-bg-card-hover) 50%,
+    var(--color-bg-card) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }

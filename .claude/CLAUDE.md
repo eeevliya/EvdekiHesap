@@ -118,9 +118,10 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 | Field | Value |
 |---|---|
-| Last completed slice | Slice 5 — Snapshots (manual snapshot window-based deduplication implemented and documented) |
-| Next slice | Slice 6 — Dashboard |
-| Known issues | `tefas-crawler` package does not exist on npm — tefas.ts uses direct HTTP to tefas.gov.tr instead. `COLLECTAPI_ENABLED=false` in .env.local — gold fetches skipped locally until Google Sheets is decommissioned. |
+| Last completed slice | Slice 6 — Dashboard (AppShell, shared components, design system, dashboard page with net worth/chart/breakdown/performance cards) |
+| Next slice | Slice 7 — Household Management UI Polish |
+| Known issues | `tefas-crawler` package does not exist on npm — tefas.ts uses direct HTTP to tefas.gov.tr instead. `COLLECTAPI_ENABLED=false` in .env.local — gold fetches skipped locally until Google Sheets is decommissioned. Cost basis computation is approximate (based on `exchange_rate` stored on deposit/trade transactions — cross-currency trades may show null). |
+| Packages added | `recharts`, `@dnd-kit/core`, `@dnd-kit/sortable`, `geist` |
 | Cron scheduling | Vercel Hobby plan only allows once-daily crons. Both cron routes (`/api/cron/price-fetch`, `/api/cron/snapshot`) are triggered externally via cron-job.org. `vercel.json` has no cron definitions. `CRON_SECRET` header check remains in place. |
 | PRD | `PRD.md` v2.3 |
 | Technical plan | `.claude/TECHNICAL_PLAN.md` v1.4 |

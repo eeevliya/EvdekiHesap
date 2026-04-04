@@ -1,31 +1,42 @@
+import { AppShell } from '@/components/shared/app-shell'
+import { DashboardClient } from '@/components/dashboard/dashboard-client'
+import { getDashboardData } from '@/lib/actions/dashboard'
 import { createServerClient } from '@/lib/supabase/server'
-import { signOut } from '@/lib/actions/auth'
-import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/shared/skeleton'
+
+export const dynamic = 'force-dynamic'
+
+async function getDisplayName(): Promise<string> {
+  const supabase = await createServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return 'User'
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  return profile?.display_name ?? user.email?.split('@')[0] ?? 'User'
+}
 
 export default async function DashboardPage() {
-  const supabase = await createServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const [data, displayName] = await Promise.all([
+    getDashboardData(),
+    getDisplayName(),
+  ])
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
-          <form action={signOut}>
-            <Button variant="outline" size="sm" type="submit">
-              Sign out
-            </Button>
-          </form>
+    <AppShell title="Dashboard" displayName={displayName}>
+      {!data ? (
+        <div className="space-y-4">
+          <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-64 w-full" />
+          <Skeleton className="h-80 w-full" />
         </div>
-        <p className="text-muted-foreground">
-          Signed in as: <span className="font-mono text-sm">{user?.email}</span>
-        </p>
-        <p className="text-muted-foreground text-sm">
-          Dashboard — to be filled in from Slice 2 onwards.
-        </p>
-      </div>
-    </div>
+      ) : (
+        <DashboardClient data={data} />
+      )}
+    </AppShell>
   )
 }

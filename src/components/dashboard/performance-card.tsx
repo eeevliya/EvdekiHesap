@@ -22,7 +22,6 @@ export function PerformanceCard({ data, displayCurrency }: PerformanceCardProps)
   const totalGL = rowsWithGL.length > 0
     ? rowsWithGL.reduce((sum, r) => sum + r.gainLossAmount!, 0)
     : null
-  // Cost basis per row = currentValue − gainLossAmount
   const totalCostBasis = rowsWithGL.length > 0
     ? rowsWithGL.reduce((sum, r) => sum + (r.currentValue - r.gainLossAmount!), 0)
     : null
@@ -37,111 +36,92 @@ export function PerformanceCard({ data, displayCurrency }: PerformanceCardProps)
   const worst = [...withPct].sort((a, b) => a.gainLossPct! - b.gainLossPct!).slice(0, 3)
   const hasBestWorst = withPct.length > 0
 
-  return (
-    // Outer wrapper is the new relative root so the floating panel anchors here,
-    // not to the SortableCard parent (which is also relative).
-    <div className="relative">
-      <Card>
-        <CardHeader>
-          <CardTitle>Performance</CardTitle>
-        </CardHeader>
+  const tableData = data.filter((r) => r.gainLossAmount != null)
 
-        {/* Total G/L amount */}
-        <div className="mb-4">
-          <div className="flex items-center gap-1.5">
-            {totalGL != null ? (
-              <>
-                {isPositive
-                  ? <ArrowUp   className="size-5 shrink-0" style={{ color: 'var(--color-positive)' }} />
-                  : <ArrowDown className="size-5 shrink-0" style={{ color: 'var(--color-negative)' }} />
-                }
-                <span
-                  className="text-3xl font-bold tracking-tight font-mono"
-                  style={{ color: isPositive ? 'var(--color-positive)' : 'var(--color-negative)' }}
-                >
-                  {formatCurrency(totalGL, displayCurrency)}
-                </span>
-              </>
-            ) : (
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Performance</CardTitle>
+      </CardHeader>
+
+      {/* Total G/L amount */}
+      <div className="mb-4">
+        <div className="flex items-center gap-1.5">
+          {totalGL != null ? (
+            <>
+              {isPositive
+                ? <ArrowUp   className="size-5 shrink-0" style={{ color: 'var(--color-positive)' }} />
+                : <ArrowDown className="size-5 shrink-0" style={{ color: 'var(--color-negative)' }} />
+              }
               <span
                 className="text-3xl font-bold tracking-tight font-mono"
-                style={{ color: 'var(--color-fg-disabled)' }}
+                style={{ color: isPositive ? 'var(--color-positive)' : 'var(--color-negative)' }}
               >
-                —
+                {formatCurrency(totalGL, displayCurrency)}
               </span>
-            )}
-          </div>
-
-          {/* Derived G/L % */}
-          {totalGLPct != null && (
-            <p
-              className="text-sm font-mono mt-0.5"
-              style={{ color: isPositive ? 'var(--color-positive)' : 'var(--color-negative)' }}
+            </>
+          ) : (
+            <span
+              className="text-3xl font-bold tracking-tight font-mono"
+              style={{ color: 'var(--color-fg-disabled)' }}
             >
-              {formatPct(totalGLPct, { showSign: true })} all time
-            </p>
+              —
+            </span>
           )}
         </div>
 
-        {/* Best / Worst columns */}
-        {hasBestWorst && (
-          <div
-            className="grid grid-cols-2 gap-4 pt-4"
-            style={{ borderTop: '1px solid var(--color-border)' }}
+        {totalGLPct != null && (
+          <p
+            className="text-sm font-mono mt-0.5"
+            style={{ color: isPositive ? 'var(--color-positive)' : 'var(--color-negative)' }}
           >
-            {/* Best */}
-            <div>
-              <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-positive)' }}>
-                Best
-              </p>
-              <div className="space-y-1.5">
-                {best.map((row) => (
-                  <div key={row.assetId} className="flex items-center justify-between gap-2">
-                    <span
-                      className="text-sm font-medium truncate"
-                      style={{ color: 'var(--color-fg-primary)' }}
-                    >
-                      {row.symbolCode}
-                    </span>
-                    <span
-                      className="text-xs font-mono shrink-0"
-                      style={{ color: 'var(--color-positive)' }}
-                    >
-                      {formatPct(row.gainLossPct!, { showSign: true })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {formatPct(totalGLPct, { showSign: true })} all time
+          </p>
+        )}
+      </div>
 
-            {/* Worst */}
-            <div>
-              <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-negative)' }}>
-                Worst
-              </p>
-              <div className="space-y-1.5">
-                {worst.map((row) => (
-                  <div key={row.assetId} className="flex items-center justify-between gap-2">
-                    <span
-                      className="text-sm font-medium truncate"
-                      style={{ color: 'var(--color-fg-primary)' }}
-                    >
-                      {row.symbolCode}
-                    </span>
-                    <span
-                      className="text-xs font-mono shrink-0"
-                      style={{ color: 'var(--color-negative)' }}
-                    >
-                      {formatPct(row.gainLossPct!, { showSign: true })}
-                    </span>
-                  </div>
-                ))}
-              </div>
+      {/* Best / Worst columns */}
+      {hasBestWorst && (
+        <div
+          className="grid grid-cols-2 gap-4 pt-4"
+          style={{ borderTop: '1px solid var(--color-border)' }}
+        >
+          <div>
+            <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-positive)' }}>Best</p>
+            <div className="space-y-1.5">
+              {best.map((row) => (
+                <div key={row.assetId} className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium truncate" style={{ color: 'var(--color-fg-primary)' }}>
+                    {row.symbolCode}
+                  </span>
+                  <span className="text-xs font-mono shrink-0" style={{ color: 'var(--color-positive)' }}>
+                    {formatPct(row.gainLossPct!, { showSign: true })}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
-        )}
 
-        {/* Expand / collapse toggle */}
+          <div>
+            <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-negative)' }}>Worst</p>
+            <div className="space-y-1.5">
+              {worst.map((row) => (
+                <div key={row.assetId} className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium truncate" style={{ color: 'var(--color-fg-primary)' }}>
+                    {row.symbolCode}
+                  </span>
+                  <span className="text-xs font-mono shrink-0" style={{ color: 'var(--color-negative)' }}>
+                    {formatPct(row.gainLossPct!, { showSign: true })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile only: expand/collapse toggle + conditional table */}
+      <div className="md:hidden">
         <div className="flex justify-end mt-3">
           <Button
             variant="ghost"
@@ -151,32 +131,24 @@ export function PerformanceCard({ data, displayCurrency }: PerformanceCardProps)
             style={{ color: 'var(--color-fg-secondary)' }}
             aria-label={expanded ? 'Collapse full table' : 'Expand full table'}
           >
-            {expanded
-              ? <ChevronUp   className="size-4" />
-              : <ChevronDown className="size-4" />
-            }
+            {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
           </Button>
         </div>
-      </Card>
 
-      {/* Expanded panel — in-flow on mobile (pushes content down), floating on desktop */}
-      {expanded && (
-        <div
-          className="mt-2 md:mt-0 md:absolute md:left-0 md:right-0 z-50 rounded-2xl p-5 md:p-6 overflow-x-auto"
-          style={{
-            top: 'calc(100% + 8px)',
-            background: 'var(--color-bg-card)',
-            border: '1px solid var(--color-border)',
-            boxShadow: 'var(--shadow-card)',
-          }}
-        >
-          <AssetPerformanceTable
-            data={data.filter((r) => r.gainLossAmount != null)}
-            displayCurrency={displayCurrency}
-            flat
-          />
-        </div>
-      )}
-    </div>
+        {expanded && (
+          <div className="overflow-x-auto">
+            <AssetPerformanceTable data={tableData} displayCurrency={displayCurrency} flat />
+          </div>
+        )}
+      </div>
+
+      {/* Desktop only: always-expanded table, inline, borderless */}
+      <div
+        className="hidden md:block mt-4 pt-4 overflow-x-auto"
+        style={{ borderTop: '1px solid var(--color-border)' }}
+      >
+        <AssetPerformanceTable data={tableData} displayCurrency={displayCurrency} flat />
+      </div>
+    </Card>
   )
 }

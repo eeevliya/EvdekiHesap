@@ -119,10 +119,10 @@ export function NetWorthCard({ data, householdId }: NetWorthCardProps) {
 
       {/* Footer */}
       <div className="mt-3 flex items-center justify-between">
-        {data.snapshotTakenAt && (
+        {data.ratesUpdatedAt && (
           <div className="flex items-center gap-1">
-            <span className="text-xs" style={{ color: 'var(--color-fg-disabled)' }}>Updated</span>
-            <RelativeTime isoString={data.snapshotTakenAt} />
+            <span className="text-xs" style={{ color: 'var(--color-fg-disabled)' }}>Rates updated</span>
+            <RelativeTime isoString={data.ratesUpdatedAt} />
           </div>
         )}
         {error && (

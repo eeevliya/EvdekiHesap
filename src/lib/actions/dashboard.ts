@@ -2,7 +2,7 @@
 
 import { createServerClient } from '@/lib/supabase/server'
 import type { DisplayCurrency, SymbolType } from '@/lib/types/domain'
-import { netWorthForCurrency, pctChange, cagr, daysBetween, gainLoss } from '@/lib/utils/calculations'
+import { pctChange, cagr, daysBetween, gainLoss } from '@/lib/utils/calculations'
 
 // ─── Output types ─────────────────────────────────────────────────────────────
 
@@ -19,7 +19,8 @@ export interface NetWorthSummary {
   change7dPct: number | null
   change30d: number | null
   change30dPct: number | null
-  snapshotTakenAt: string | null
+  /** Most recent fetched_at across all exchange rates used */
+  ratesUpdatedAt: string | null
 }
 
 export interface AssetBreakdownSegment {
@@ -91,6 +92,10 @@ function pickAssetValue(
 /**
  * Load all data needed to render the dashboard.
  * Called from the dashboard Server Component — not a Server Action form target.
+ *
+ * Net worth, asset breakdown, and performance table are sourced from live
+ * asset amounts × latest exchange rates. The performance chart is the only
+ * component that reads from snapshot history.
  */
 export async function getDashboardData(): Promise<DashboardData | null> {
   const supabase = await createServerClient()
@@ -115,7 +120,7 @@ export async function getDashboardData(): Promise<DashboardData | null> {
   const household = membership.households as unknown as { id: string; display_currency: string } | null
   const displayCurrency = (household?.display_currency ?? 'TRY') as DisplayCurrency
 
-  // ── Snapshots (last 365 days) ────────────────────────────────────────────
+  // ── Snapshots (last 365 days + oldest ever) — for chart and time comparisons only ──
   const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
 
   const { data: snapshots } = await supabase
@@ -133,7 +138,6 @@ export async function getDashboardData(): Promise<DashboardData | null> {
     net_worth_eur: number | null
   }[]
 
-  // Also get the oldest snapshot ever for all-time cost basis
   const { data: oldestSnapshot } = await supabase
     .from('snapshots')
     .select('taken_at, net_worth_try, net_worth_usd, net_worth_eur')
@@ -142,182 +146,7 @@ export async function getDashboardData(): Promise<DashboardData | null> {
     .limit(1)
     .maybeSingle()
 
-  // ── Latest snapshot — current net worth ──────────────────────────────────
-  const latestSnapshot = snapshotRows.length > 0
-    ? snapshotRows[snapshotRows.length - 1]
-    : null
-
-  const currentNetWorth = latestSnapshot ? (pickNetWorth(latestSnapshot, displayCurrency) ?? 0) : 0
-  const takenAt = latestSnapshot?.taken_at ?? null
-
-  // ── Time-based comparisons ───────────────────────────────────────────────
-  const now = Date.now()
-
-  function findSnapshotNearTime(targetMs: number) {
-    if (snapshotRows.length === 0) return null
-    let closest = snapshotRows[0]
-    let minDiff = Math.abs(new Date(closest.taken_at).getTime() - targetMs)
-    for (const s of snapshotRows) {
-      const diff = Math.abs(new Date(s.taken_at).getTime() - targetMs)
-      if (diff < minDiff) { minDiff = diff; closest = s }
-    }
-    return closest
-  }
-
-  const snap24h = findSnapshotNearTime(now - 24 * 60 * 60 * 1000)
-  const snap7d  = findSnapshotNearTime(now - 7  * 24 * 60 * 60 * 1000)
-  const snap30d = findSnapshotNearTime(now - 30 * 24 * 60 * 60 * 1000)
-
-  const val24h = snap24h ? (pickNetWorth(snap24h, displayCurrency) ?? null) : null
-  const val7d  = snap7d  ? (pickNetWorth(snap7d,  displayCurrency) ?? null) : null
-  const val30d = snap30d ? (pickNetWorth(snap30d, displayCurrency) ?? null) : null
-  const valOldest = oldestSnapshot ? (pickNetWorth(oldestSnapshot, displayCurrency) ?? null) : null
-
-  const change24h    = val24h    != null ? currentNetWorth - val24h    : null
-  const change7d     = val7d     != null ? currentNetWorth - val7d     : null
-  const change30d    = val30d    != null ? currentNetWorth - val30d    : null
-  const changeAllTime = valOldest != null ? currentNetWorth - valOldest : null
-
-  const netWorth: NetWorthSummary = {
-    current: currentNetWorth,
-    displayCurrency,
-    changeAllTime,
-    changeAllTimePct:  pctChange(valOldest, currentNetWorth),
-    change24h,
-    change24hPct:  pctChange(val24h,    currentNetWorth),
-    change7d,
-    change7dPct:   pctChange(val7d,     currentNetWorth),
-    change30d,
-    change30dPct:  pctChange(val30d,    currentNetWorth),
-    snapshotTakenAt: takenAt,
-  }
-
-  // ── Asset breakdown from latest snapshot ─────────────────────────────────
-  let assetBreakdown: AssetBreakdownSegment[] = []
-
-  if (latestSnapshot) {
-    const { data: snapshotAssets } = await supabase
-      .from('snapshot_assets')
-      .select(`
-        symbol_id,
-        amount,
-        value_try,
-        value_usd,
-        value_eur,
-        symbol:symbols (code, name, type)
-      `)
-      .eq('snapshot_id', latestSnapshot.id)
-
-    type SnapAssetRaw = {
-      symbol_id: string
-      amount: number
-      value_try: number | null
-      value_usd: number | null
-      value_eur: number | null
-      symbol: { code: string; name: string | null; type: string } | null
-    }
-
-    const snapAssets = (snapshotAssets ?? []) as unknown as SnapAssetRaw[]
-    const totalValue = currentNetWorth || 1
-
-    // Aggregate by symbol
-    const bySymbol = new Map<string, { code: string; name: string | null; type: string; value: number }>()
-    for (const sa of snapAssets) {
-      const val = pickAssetValue(sa, displayCurrency) ?? 0
-      const code = sa.symbol?.code ?? sa.symbol_id
-      if (bySymbol.has(code)) {
-        bySymbol.get(code)!.value += val
-      } else {
-        bySymbol.set(code, {
-          code,
-          name: sa.symbol?.name ?? null,
-          type: sa.symbol?.type ?? 'custom',
-          value: val,
-        })
-      }
-    }
-
-    assetBreakdown = Array.from(bySymbol.values())
-      .sort((a, b) => b.value - a.value)
-      .map((item) => ({
-        symbolCode: item.code,
-        symbolName: item.name,
-        symbolType: item.type as SymbolType,
-        value: item.value,
-        pct: (item.value / totalValue) * 100,
-      }))
-  }
-
-  // ── Chart data ───────────────────────────────────────────────────────────
-  // Build chart points from snapshots.
-  // For each snapshot: get net worth + per-symbol values.
-  // To keep it feasible, we use snapshot_assets for the latest and
-  // the net worth figures (pre-computed) for historical snapshots.
-  // The chart shows net worth over time (stacked bar = by symbol from latest breakdown).
-
-  const chartSymbolSet = new Set<string>(assetBreakdown.map((s) => s.symbolCode))
-
-  const chartData: ChartPoint[] = snapshotRows.map((s) => ({
-    date: s.taken_at.slice(0, 10), // YYYY-MM-DD
-    netWorth: pickNetWorth(s, displayCurrency) ?? 0,
-    bySymbol: {},
-  }))
-
-  // For the stacked bar chart, we load per-symbol values for all snapshots.
-  // This is expensive for 365 days but necessary for the visual.
-  // We'll load it for the snapshots in the range, limited to 90 data points.
-  const sampledSnapshots = downsample(snapshotRows, 90)
-
-  if (sampledSnapshots.length > 0) {
-    const sampledIds = sampledSnapshots.map((s) => s.id)
-    const { data: allSnapshotAssets } = await supabase
-      .from('snapshot_assets')
-      .select('snapshot_id, value_try, value_usd, value_eur, symbol:symbols(code)')
-      .in('snapshot_id', sampledIds)
-
-    type SnapAssetMin = {
-      snapshot_id: string
-      value_try: number | null
-      value_usd: number | null
-      value_eur: number | null
-      symbol: { code: string } | null
-    }
-
-    const snapshotAssetMap = new Map<string, Map<string, number>>()
-    for (const sa of ((allSnapshotAssets ?? []) as unknown as SnapAssetMin[])) {
-      if (!snapshotAssetMap.has(sa.snapshot_id)) {
-        snapshotAssetMap.set(sa.snapshot_id, new Map())
-      }
-      const code = sa.symbol?.code ?? 'Unknown'
-      const val = pickAssetValue(sa, displayCurrency) ?? 0
-      const existing = snapshotAssetMap.get(sa.snapshot_id)!.get(code) ?? 0
-      snapshotAssetMap.get(sa.snapshot_id)!.set(code, existing + val)
-    }
-
-    // Rebuild chart data using sampled snapshots
-    const chartPoints: ChartPoint[] = sampledSnapshots.map((s) => {
-      const bySymbol: Record<string, number> = {}
-      const symbolMap = snapshotAssetMap.get(s.id)
-      if (symbolMap) {
-        for (const [code, val] of symbolMap) {
-          bySymbol[code] = val
-          chartSymbolSet.add(code)
-        }
-      }
-      return {
-        date: s.taken_at.slice(0, 10),
-        netWorth: pickNetWorth(s, displayCurrency) ?? 0,
-        bySymbol,
-      }
-    })
-
-    // Replace chartData with the richer sampled version
-    chartData.length = 0
-    chartData.push(...chartPoints)
-  }
-
-  // ── Asset performance table ───────────────────────────────────────────────
-  // Load current assets with exchange rates and compute performance metrics.
+  // ── Live assets ───────────────────────────────────────────────────────────
   const { data: assets } = await supabase
     .from('assets')
     .select(`
@@ -348,30 +177,16 @@ export async function getDashboardData(): Promise<DashboardData | null> {
 
   const assetRows = (assets ?? []) as unknown as AssetRaw[]
 
-  // Fetch latest exchange rates for all symbols
+  // ── Live exchange rates ───────────────────────────────────────────────────
   const symbolIds = [...new Set(assetRows.map((a) => a.symbol_id))]
 
-  let rateMap = new Map<string, number>()
+  const rateMap = new Map<string, number>()
   let usdRate: number | null = null
   let eurRate: number | null = null
+  let ratesUpdatedAt: string | null = null
 
   if (symbolIds.length > 0) {
-    const { data: rates } = await supabase
-      .from('exchange_rates')
-      .select('symbol_id, rate, fetched_at')
-      .in('symbol_id', symbolIds)
-      .order('fetched_at', { ascending: false })
-
-    // Deduplicate — keep latest per symbol
-    const seen = new Set<string>()
-    for (const r of (rates ?? []) as { symbol_id: string; rate: number }[]) {
-      if (!seen.has(r.symbol_id)) {
-        rateMap.set(r.symbol_id, Number(r.rate))
-        seen.add(r.symbol_id)
-      }
-    }
-
-    // Get USD/EUR rates for cross-currency conversion
+    // Get USD/EUR symbol IDs
     const { data: fxSymbols } = await supabase
       .from('symbols')
       .select('id, code')
@@ -382,73 +197,75 @@ export async function getDashboardData(): Promise<DashboardData | null> {
     const eurSymbolId = (fxSymbols ?? []).find((s) => s.code === 'EUR')?.id ?? null
 
     const allSymbolIds = [
-      ...symbolIds,
-      ...[usdSymbolId, eurSymbolId].filter(Boolean) as string[],
+      ...new Set([
+        ...symbolIds,
+        ...[usdSymbolId, eurSymbolId].filter(Boolean) as string[],
+      ]),
     ]
 
-    const { data: fxRates } = await supabase
+    const { data: rates } = await supabase
       .from('exchange_rates')
       .select('symbol_id, rate, fetched_at')
       .in('symbol_id', allSymbolIds)
       .order('fetched_at', { ascending: false })
 
-    const fxSeen = new Set<string>()
-    for (const r of (fxRates ?? []) as { symbol_id: string; rate: number }[]) {
-      if (!fxSeen.has(r.symbol_id)) {
+    const seen = new Set<string>()
+    for (const r of (rates ?? []) as { symbol_id: string; rate: number; fetched_at: string }[]) {
+      if (!seen.has(r.symbol_id)) {
+        rateMap.set(r.symbol_id, Number(r.rate))
         if (r.symbol_id === usdSymbolId) usdRate = Number(r.rate)
         if (r.symbol_id === eurSymbolId) eurRate = Number(r.rate)
-        if (!rateMap.has(r.symbol_id)) rateMap.set(r.symbol_id, Number(r.rate))
-        fxSeen.add(r.symbol_id)
+        // Track the most recent fetched_at across all rates used
+        if (!ratesUpdatedAt || r.fetched_at > ratesUpdatedAt) {
+          ratesUpdatedAt = r.fetched_at
+        }
+        seen.add(r.symbol_id)
       }
     }
   }
 
-  // Load earliest transaction date per asset for CAGR computation
+  // ── Cost basis + first transaction date per asset ─────────────────────────
   const assetIds = assetRows.map((a) => a.id)
   const firstTransactionMap = new Map<string, string>()
+  const costBasisMap = new Map<string, number>()
 
   if (assetIds.length > 0) {
-    const { data: firstTxns } = await supabase
-      .from('transactions')
-      .select('to_asset_id, date')
-      .eq('household_id', householdId)
-      .in('to_asset_id', assetIds)
-      .order('date', { ascending: true })
+    const [firstTxnsResult, costBasisResult] = await Promise.all([
+      supabase
+        .from('transactions')
+        .select('to_asset_id, date')
+        .eq('household_id', householdId)
+        .in('to_asset_id', assetIds)
+        .order('date', { ascending: true }),
+      supabase
+        .from('transactions')
+        .select('to_asset_id, to_amount, exchange_rate, type')
+        .eq('household_id', householdId)
+        .in('type', ['deposit', 'interest', 'trade'])
+        .in('to_asset_id', assetIds),
+    ])
 
-    for (const t of (firstTxns ?? []) as { to_asset_id: string | null; date: string }[]) {
+    for (const t of (firstTxnsResult.data ?? []) as { to_asset_id: string | null; date: string }[]) {
       if (t.to_asset_id && !firstTransactionMap.has(t.to_asset_id)) {
         firstTransactionMap.set(t.to_asset_id, t.date)
       }
     }
-  }
 
-  // Compute cost basis from deposit/interest transactions per asset
-  const costBasisMap = new Map<string, number>()
-  if (assetIds.length > 0) {
-    const { data: depTxns } = await supabase
-      .from('transactions')
-      .select('to_asset_id, to_amount, exchange_rate, type')
-      .eq('household_id', householdId)
-      .in('type', ['deposit', 'interest', 'trade'])
-      .in('to_asset_id', assetIds)
-
-    for (const t of (depTxns ?? []) as {
+    for (const t of (costBasisResult.data ?? []) as {
       to_asset_id: string | null
       to_amount: number | null
       exchange_rate: number | null
       type: string
     }[]) {
       if (!t.to_asset_id || t.to_amount == null) continue
-      // For interest, cost basis contribution = 0 (free money)
       if (t.type === 'interest') continue
-      // For deposit/trade: cost_basis_in_try ≈ to_amount × exchange_rate
       const rate = t.exchange_rate ?? 0
       const contribution = Number(t.to_amount) * Number(rate)
       costBasisMap.set(t.to_asset_id, (costBasisMap.get(t.to_asset_id) ?? 0) + contribution)
     }
   }
 
-  // Convert cost basis to display currency
+  // Convert cost basis (always stored in TRY) to display currency
   function costBasisToDisplay(costBasisTry: number | null): number | null {
     if (costBasisTry == null) return null
     if (displayCurrency === 'USD') return usdRate ? costBasisTry / usdRate : null
@@ -456,7 +273,9 @@ export async function getDashboardData(): Promise<DashboardData | null> {
     return costBasisTry
   }
 
-  // Build performance rows
+  // ── Compute live values per asset → net worth, breakdown, performance ─────
+  let currentNetWorth = 0
+  const bySymbolLive = new Map<string, { code: string; name: string | null; type: string; value: number }>()
   const performance: AssetPerformanceRow[] = []
 
   for (const asset of assetRows) {
@@ -484,6 +303,20 @@ export async function getDashboardData(): Promise<DashboardData | null> {
     if (displayCurrency === 'USD') currentValue = usdRate ? valueTry / usdRate : 0
     else if (displayCurrency === 'EUR') currentValue = eurRate ? valueTry / eurRate : 0
     else currentValue = valueTry
+
+    currentNetWorth += currentValue
+
+    // Accumulate breakdown by symbol code
+    if (bySymbolLive.has(sym.code)) {
+      bySymbolLive.get(sym.code)!.value += currentValue
+    } else {
+      bySymbolLive.set(sym.code, {
+        code: sym.code,
+        name: sym.name,
+        type: sym.type,
+        value: currentValue,
+      })
+    }
 
     const costBasisTry = costBasisMap.has(asset.id) ? costBasisMap.get(asset.id)! : null
     const costBasis = costBasisToDisplay(costBasisTry)
@@ -513,8 +346,105 @@ export async function getDashboardData(): Promise<DashboardData | null> {
     })
   }
 
-  // Sort by current value descending
   performance.sort((a, b) => b.currentValue - a.currentValue)
+
+  // ── Asset breakdown from live values ──────────────────────────────────────
+  const totalValue = currentNetWorth || 1
+  const assetBreakdown: AssetBreakdownSegment[] = Array.from(bySymbolLive.values())
+    .sort((a, b) => b.value - a.value)
+    .map((item) => ({
+      symbolCode: item.code,
+      symbolName: item.name,
+      symbolType: item.type as SymbolType,
+      value: item.value,
+      pct: (item.value / totalValue) * 100,
+    }))
+
+  // ── Time-based comparisons (snapshot history vs. live net worth) ──────────
+  const now = Date.now()
+
+  function findSnapshotNearTime(targetMs: number) {
+    if (snapshotRows.length === 0) return null
+    let closest = snapshotRows[0]
+    let minDiff = Math.abs(new Date(closest.taken_at).getTime() - targetMs)
+    for (const s of snapshotRows) {
+      const diff = Math.abs(new Date(s.taken_at).getTime() - targetMs)
+      if (diff < minDiff) { minDiff = diff; closest = s }
+    }
+    return closest
+  }
+
+  const snap24h = findSnapshotNearTime(now - 24 * 60 * 60 * 1000)
+  const snap7d  = findSnapshotNearTime(now - 7  * 24 * 60 * 60 * 1000)
+  const snap30d = findSnapshotNearTime(now - 30 * 24 * 60 * 60 * 1000)
+
+  const val24h    = snap24h     ? (pickNetWorth(snap24h,        displayCurrency) ?? null) : null
+  const val7d     = snap7d      ? (pickNetWorth(snap7d,         displayCurrency) ?? null) : null
+  const val30d    = snap30d     ? (pickNetWorth(snap30d,        displayCurrency) ?? null) : null
+  const valOldest = oldestSnapshot ? (pickNetWorth(oldestSnapshot, displayCurrency) ?? null) : null
+
+  const netWorth: NetWorthSummary = {
+    current: currentNetWorth,
+    displayCurrency,
+    changeAllTime:    valOldest != null ? currentNetWorth - valOldest : null,
+    changeAllTimePct: pctChange(valOldest, currentNetWorth),
+    change24h:    val24h != null ? currentNetWorth - val24h : null,
+    change24hPct: pctChange(val24h,  currentNetWorth),
+    change7d:     val7d  != null ? currentNetWorth - val7d  : null,
+    change7dPct:  pctChange(val7d,   currentNetWorth),
+    change30d:    val30d != null ? currentNetWorth - val30d : null,
+    change30dPct: pctChange(val30d,  currentNetWorth),
+    ratesUpdatedAt,
+  }
+
+  // ── Chart data from snapshot history ──────────────────────────────────────
+  const chartSymbolSet = new Set<string>(assetBreakdown.map((s) => s.symbolCode))
+
+  const sampledSnapshots = downsample(snapshotRows, 90)
+  const chartData: ChartPoint[] = []
+
+  if (sampledSnapshots.length > 0) {
+    const sampledIds = sampledSnapshots.map((s) => s.id)
+    const { data: allSnapshotAssets } = await supabase
+      .from('snapshot_assets')
+      .select('snapshot_id, value_try, value_usd, value_eur, symbol:symbols(code)')
+      .in('snapshot_id', sampledIds)
+
+    type SnapAssetMin = {
+      snapshot_id: string
+      value_try: number | null
+      value_usd: number | null
+      value_eur: number | null
+      symbol: { code: string } | null
+    }
+
+    const snapshotAssetMap = new Map<string, Map<string, number>>()
+    for (const sa of ((allSnapshotAssets ?? []) as unknown as SnapAssetMin[])) {
+      if (!snapshotAssetMap.has(sa.snapshot_id)) {
+        snapshotAssetMap.set(sa.snapshot_id, new Map())
+      }
+      const code = sa.symbol?.code ?? 'Unknown'
+      const val = pickAssetValue(sa, displayCurrency) ?? 0
+      const existing = snapshotAssetMap.get(sa.snapshot_id)!.get(code) ?? 0
+      snapshotAssetMap.get(sa.snapshot_id)!.set(code, existing + val)
+    }
+
+    for (const s of sampledSnapshots) {
+      const bySymbol: Record<string, number> = {}
+      const symbolMap = snapshotAssetMap.get(s.id)
+      if (symbolMap) {
+        for (const [code, val] of symbolMap) {
+          bySymbol[code] = val
+          chartSymbolSet.add(code)
+        }
+      }
+      chartData.push({
+        date: s.taken_at.slice(0, 10),
+        netWorth: pickNetWorth(s, displayCurrency) ?? 0,
+        bySymbol,
+      })
+    }
+  }
 
   return {
     householdId,

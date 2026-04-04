@@ -4,8 +4,8 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 2.1 |
-| **Date** | 2026-03-28 |
+| **Version** | 2.2 |
+| **Date** | 2026-04-04 |
 | **Status** | Draft for Review |
 | **Author** | Product Manager |
 | **Stakeholder** | Project Owner |
@@ -143,7 +143,7 @@ Can view the dashboard and history but cannot make any edits.
 1. The system auto-fetches prices for Tefas funds, crypto, stocks, and fiat on a scheduled basis during market hours.
    - Different symbol types have different fetching logic. The specific APIs and routines for each type will be decided collaboratively at the start of the relevant implementation session — Claude Code should surface options and ask before implementing.
 2. The system stores portfolio snapshots every 6 hours for historical charting.
-3. A manual "Refresh Now" button fetches the latest prices and overwrites the most recent snapshot.
+3. A manual "Refresh Now" button fetches the latest prices and overwrites the most recent snapshot rather than appending a new row.
 4. The user can view price fetch status (last updated, errors, data sources).
 
 ---

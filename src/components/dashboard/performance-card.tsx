@@ -171,7 +171,7 @@ export function PerformanceCard({ data, displayCurrency }: PerformanceCardProps)
           }}
         >
           <AssetPerformanceTable
-            data={data}
+            data={data.filter((r) => r.gainLossAmount != null)}
             displayCurrency={displayCurrency}
             flat
           />

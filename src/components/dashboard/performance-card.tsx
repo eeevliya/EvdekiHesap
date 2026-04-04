@@ -159,10 +159,10 @@ export function PerformanceCard({ data, displayCurrency }: PerformanceCardProps)
         </div>
       </Card>
 
-      {/* Floating expanded panel — absolutely positioned so the card's grid footprint is unchanged */}
+      {/* Expanded panel — in-flow on mobile (pushes content down), floating on desktop */}
       {expanded && (
         <div
-          className="absolute left-0 right-0 z-50 rounded-2xl p-5 md:p-6 overflow-x-auto"
+          className="mt-2 md:mt-0 md:absolute md:left-0 md:right-0 z-50 rounded-2xl p-5 md:p-6 overflow-x-auto"
           style={{
             top: 'calc(100% + 8px)',
             background: 'var(--color-bg-card)',

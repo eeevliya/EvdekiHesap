@@ -35,42 +35,21 @@ interface SnapshotAssetInput {
 
 // ─── Core snapshot logic ──────────────────────────────────────────────────────
 
+interface SnapshotCalculation {
+  netWorthTry: number
+  netWorthUsd: number | null
+  netWorthEur: number | null
+  snapshotAssets: SnapshotAssetInput[]
+}
+
 /**
- * Create a snapshot for a single household.
- *
- * Uses the service-role client to write to snapshots and snapshot_assets.
- * Called by triggerManualSnapshot (Server Action) and the cron Route Handler.
- *
- * Net worth calculation:
- *   1. For each asset, find the latest exchange_rate row for that symbol.
- *   2. Convert asset value to TRY:
- *        - primary_conversion_fiat = null (fiat_currency, stock, tefas_fund) or 'TRY'
- *            → value_in_try = amount × rate  (rate is already TRY-denominated)
- *        - primary_conversion_fiat = 'USD'
- *            → value_in_try = amount × rate × usd_try
- *        - primary_conversion_fiat = 'EUR'
- *            → value_in_try = amount × rate × eur_try
- *   3. Sum → net_worth_try; derive net_worth_usd and net_worth_eur via FX rates.
- *   4. value_in_display_currency = value_in_try / display_fiat_try_rate.
- *
- * Assets with no exchange rate are skipped (not included in net worth).
+ * Load assets and exchange rates for a household and compute net worth figures.
+ * Pure calculation — no database writes.
  */
-export async function createSnapshot(
-  householdId: string,
-  trigger: SnapshotTrigger
-): Promise<Snapshot> {
+async function calculateSnapshotData(
+  householdId: string
+): Promise<SnapshotCalculation> {
   const supabase = createServiceRoleClient()
-
-  // ── Load household ──────────────────────────────────────────────────────
-  const { data: household, error: hErr } = await supabase
-    .from('households')
-    .select('id')
-    .eq('id', householdId)
-    .single()
-
-  if (hErr || !household) {
-    throw new Error(`Household not found: ${hErr?.message ?? 'no data'}`)
-  }
 
   // ── Load all assets with their symbols ─────────────────────────────────
   const { data: assets, error: aErr } = await supabase
@@ -174,6 +153,48 @@ export async function createSnapshot(
 
   const netWorthUsd = usdTry && usdTry > 0 ? netWorthTry / usdTry : null
   const netWorthEur = eurTry && eurTry > 0 ? netWorthTry / eurTry : null
+
+  return { netWorthTry, netWorthUsd, netWorthEur, snapshotAssets }
+}
+
+/**
+ * Create a snapshot for a single household.
+ *
+ * Uses the service-role client to write to snapshots and snapshot_assets.
+ * Called by triggerManualSnapshot (Server Action) and the cron Route Handler.
+ *
+ * Net worth calculation:
+ *   1. For each asset, find the latest exchange_rate row for that symbol.
+ *   2. Convert asset value to TRY:
+ *        - primary_conversion_fiat = null (fiat_currency, stock, tefas_fund) or 'TRY'
+ *            → value_in_try = amount × rate  (rate is already TRY-denominated)
+ *        - primary_conversion_fiat = 'USD'
+ *            → value_in_try = amount × rate × usd_try
+ *        - primary_conversion_fiat = 'EUR'
+ *            → value_in_try = amount × rate × eur_try
+ *   3. Sum → net_worth_try; derive net_worth_usd and net_worth_eur via FX rates.
+ *
+ * Assets with no exchange rate are skipped (not included in net worth).
+ */
+export async function createSnapshot(
+  householdId: string,
+  trigger: SnapshotTrigger
+): Promise<Snapshot> {
+  const supabase = createServiceRoleClient()
+
+  // ── Load household ──────────────────────────────────────────────────────
+  const { data: household, error: hErr } = await supabase
+    .from('households')
+    .select('id')
+    .eq('id', householdId)
+    .single()
+
+  if (hErr || !household) {
+    throw new Error(`Household not found: ${hErr?.message ?? 'no data'}`)
+  }
+
+  const { netWorthTry, netWorthUsd, netWorthEur, snapshotAssets } =
+    await calculateSnapshotData(householdId)
 
   // ── Insert snapshot row ──────────────────────────────────────────────────
   const { data: snapshot, error: sErr } = await supabase
@@ -324,6 +345,14 @@ export async function getSnapshotAssets(
 /**
  * Manual "Take Snapshot Now" trigger.
  * Any authenticated member of the household can call this.
+ *
+ * Upsert behaviour:
+ *   - Finds the most recent `scheduled` snapshot to define the current window.
+ *   - If a `manual` snapshot already exists within that window (taken_at after
+ *     the scheduled snapshot's taken_at), updates it in place and replaces its
+ *     snapshot_assets. id, created_at, trigger, and household_id are never touched.
+ *   - Otherwise inserts a fresh snapshot as normal.
+ *   - If no scheduled snapshot exists at all, always inserts.
  */
 export async function triggerManualSnapshot(
   householdId: string
@@ -346,6 +375,98 @@ export async function triggerManualSnapshot(
   if (!membership) return { success: false, error: 'Not a member of this household' }
 
   try {
+    const serviceSupabase = createServiceRoleClient()
+
+    // ── Find the most recent scheduled snapshot ─────────────────────────
+    const { data: latestScheduled } = await serviceSupabase
+      .from('snapshots')
+      .select('id, taken_at')
+      .eq('household_id', householdId)
+      .eq('trigger', 'scheduled')
+      .order('taken_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    // ── If a scheduled snapshot exists, look for a manual one in its window
+    let existingManualId: string | null = null
+    if (latestScheduled) {
+      const { data: existingManual } = await serviceSupabase
+        .from('snapshots')
+        .select('id')
+        .eq('household_id', householdId)
+        .eq('trigger', 'manual')
+        .gt('taken_at', latestScheduled.taken_at)
+        .order('taken_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      existingManualId = existingManual?.id ?? null
+    }
+
+    // ── Upsert path: overwrite the existing manual snapshot ────────────
+    if (existingManualId) {
+      const { netWorthTry, netWorthUsd, netWorthEur, snapshotAssets } =
+        await calculateSnapshotData(householdId)
+
+      // Update the snapshot row — only the fields that change
+      const { data: updatedSnapshot, error: uErr } = await serviceSupabase
+        .from('snapshots')
+        .update({
+          taken_at: new Date().toISOString(),
+          net_worth_try: netWorthTry,
+          net_worth_usd: netWorthUsd,
+          net_worth_eur: netWorthEur,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingManualId)
+        .select()
+        .single()
+
+      if (uErr || !updatedSnapshot) {
+        throw new Error(`Failed to update snapshot: ${uErr?.message ?? 'no data'}`)
+      }
+
+      // Delete stale child rows and re-insert fresh ones
+      const { error: dErr } = await serviceSupabase
+        .from('snapshot_assets')
+        .delete()
+        .eq('snapshot_id', existingManualId)
+
+      if (dErr) throw new Error(`Failed to delete snapshot_assets: ${dErr.message}`)
+
+      if (snapshotAssets.length > 0) {
+        const { error: saErr } = await serviceSupabase.from('snapshot_assets').insert(
+          snapshotAssets.map((sa) => ({
+            snapshot_id: existingManualId,
+            household_id: householdId,
+            asset_id: sa.assetId,
+            symbol_id: sa.symbolId,
+            amount: sa.amount,
+            value_try: sa.valueTry,
+            value_usd: sa.valueUsd,
+            value_eur: sa.valueEur,
+          }))
+        )
+        if (saErr) throw new Error(`Failed to insert snapshot_assets: ${saErr.message}`)
+      }
+
+      const snapshot: Snapshot = {
+        id: updatedSnapshot.id as string,
+        householdId: updatedSnapshot.household_id as string,
+        takenAt: updatedSnapshot.taken_at as string,
+        netWorthTry: updatedSnapshot.net_worth_try != null ? Number(updatedSnapshot.net_worth_try) : null,
+        netWorthUsd: updatedSnapshot.net_worth_usd != null ? Number(updatedSnapshot.net_worth_usd) : null,
+        netWorthEur: updatedSnapshot.net_worth_eur != null ? Number(updatedSnapshot.net_worth_eur) : null,
+        trigger: updatedSnapshot.trigger as SnapshotTrigger,
+        createdAt: updatedSnapshot.created_at as string,
+        updatedAt: updatedSnapshot.updated_at as string,
+      }
+
+      revalidatePath('/settings/snapshots')
+      return { success: true, data: snapshot }
+    }
+
+    // ── Insert path: no existing manual snapshot in this window ────────
     const snapshot = await createSnapshot(householdId, 'manual')
     revalidatePath('/settings/snapshots')
     return { success: true, data: snapshot }

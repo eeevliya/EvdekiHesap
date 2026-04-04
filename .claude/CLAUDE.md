@@ -118,7 +118,7 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 | Field | Value |
 |---|---|
-| Last completed slice | Slice 6 + dashboard card redesign — Performance card (total G/L, best/worst, expand toggle) replaces Asset Performance card; Net Worth card drops all-time row and adds arrow indicators to 24h/7d/30d badges |
+| Last completed slice | Slice 6 + dashboard polish — Performance card (total G/L, best/worst, asset table always expanded on desktop / toggle on mobile); Net Worth card drops all-time row, adds arrow indicators to badges; fixed responsive column layout (xl=3col, md=2col, mobile=1col); DnD removed |
 | Next slice | Slice 7 — Household Management UI Polish |
 | Known issues | `tefas-crawler` package does not exist on npm — tefas.ts uses direct HTTP to tefas.gov.tr instead. `COLLECTAPI_ENABLED=false` in .env.local — gold fetches skipped locally until Google Sheets is decommissioned. G/L is null for assets with no snapshot yet (new households before first snapshot). Migration `20260404000001_snapshot_assets_gain_loss.sql` must be applied to Supabase Cloud before G/L populates on new snapshots. |
 | Packages added | `recharts`, `@dnd-kit/core`, `@dnd-kit/sortable`, `geist` |

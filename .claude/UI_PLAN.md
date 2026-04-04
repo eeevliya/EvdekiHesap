@@ -227,7 +227,12 @@ Fixed sticky bar on all mobile pages:
 
 ### 5.1 Dashboard (`/dashboard`)
 
-Four cards, rendered in this default order. Draggable within session on desktop.
+Four cards in a fixed responsive layout — no drag-and-drop.
+
+Column layout by breakpoint:
+- **xl (≥1280 px) — 3 columns**: Col 1 = Net Worth + Performance | Col 2 = Asset Breakdown | Col 3 = Chart
+- **md (768–1279 px) — 2 columns**: Col 1 = Net Worth + Performance | Col 2 = Asset Breakdown then Chart below
+- **mobile (< 768 px) — 1 column**: Net Worth → Performance → Asset Breakdown → Chart
 
 #### Net Worth Card
 - Large `font-mono` display of current net worth in household display currency
@@ -264,15 +269,17 @@ Always-visible summary:
 - Best / Worst columns: two columns, up to 3 assets each, ranked by G/L % desc/asc.
   Best uses `--color-positive`, Worst uses `--color-negative`. Hidden entirely when
   no assets have G/L data.
-- Expand/collapse toggle icon (ChevronDown/Up) bottom-right.
-
-Expanded state (collapsed by default):
-- Full asset performance table rendered flat (no nested card border) inside the card.
+Asset performance table (only assets with G/L data):
 - Columns: Symbol | Amount | Current Value | Cost Basis | G/L | G/L % | CAGR
 - Client-side sortable on any column. Default: current value desc.
 - Monetary values right-aligned, `font-mono`.
 - Positive G/L: `--color-positive`. Negative: `--color-negative`.
 - CAGR: annualized %, two decimal places.
+- Rendered flat (no nested card border) inside the Performance card.
+
+**Desktop**: table always visible inline below the summary — no toggle.
+
+**Mobile**: expand/collapse toggle (ChevronDown/Up) bottom-right. Table collapsed by default; expands inline inside the card.
 
 ---
 

@@ -30,3 +30,6 @@ next-env.d.ts
 
 # supabase local CLI state
 supabase/.temp/
+
+# claude ui reference (read-only v0.app export — do not commit)
+.claude/ui-reference/

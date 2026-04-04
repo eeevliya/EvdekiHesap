@@ -78,6 +78,16 @@ The slice contract (shared types, API shapes, database schema) is defined in `.c
 
 ---
 
+## UI Plan
+
+The visual design, layout, navigation, and page composition for all slices from Slice 6 onward are governed by `.claude/UI_PLAN.md` (approved v1.0).
+
+- Read `UI_PLAN.md` alongside `TECHNICAL_PLAN.md` at the start of any UI-touching slice.
+- `.claude/ui-reference/` contains a read-only v0.app visual reference. Do not run it, merge its configs, or copy code verbatim from it — use it for visual reference only.
+- Route consolidations in effect: `/settings/household` and `/settings/members` redirect to `/household`; the Rates page lives at `/rates`.
+
+---
+
 ## Infrastructure
 
 | Resource | Value |
@@ -98,10 +108,12 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 | Field | Value |
 |---|---|
-| Last completed slice | Slice 5 — Snapshots (snapshot_assets schema revised: exchange_rate + value_in_display_currency dropped; value_try/usd/eur added) |
+| Last completed slice | Slice 5 — Snapshots (manual snapshot window-based deduplication implemented and documented) |
 | Next slice | Slice 6 — Dashboard |
 | Known issues | `tefas-crawler` package does not exist on npm — tefas.ts uses direct HTTP to tefas.gov.tr instead. `COLLECTAPI_ENABLED=false` in .env.local — gold fetches skipped locally until Google Sheets is decommissioned. |
 | Cron scheduling | Vercel Hobby plan only allows once-daily crons. Both cron routes (`/api/cron/price-fetch`, `/api/cron/snapshot`) are triggered externally via cron-job.org. `vercel.json` has no cron definitions. `CRON_SECRET` header check remains in place. |
-| Technical plan | `.claude/TECHNICAL_PLAN.md` (moved from repo root) |
-| Technical plan approved | Yes (v1.2, 2026-03-29) |
+| PRD | `PRD.md` v2.3 |
+| Technical plan | `.claude/TECHNICAL_PLAN.md` v1.4 |
+| Technical plan approved | Yes (v1.4) |
+| UI plan | `.claude/UI_PLAN.md` v1.0 (approved) |
 | PM testing hub | `/tests` — lists all testable routes grouped by slice |

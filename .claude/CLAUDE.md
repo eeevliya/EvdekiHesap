@@ -88,6 +88,16 @@ The visual design, layout, navigation, and page composition for all slices from 
 
 ---
 
+## Pre-Slice 6 Notes
+
+These route decisions are approved and must be followed from Slice 6 onward. `TECHNICAL_PLAN.md` §1 folder structure predates `UI_PLAN.md` v1.0 and does not reflect these consolidations — update §1 when implementing the affected routes.
+
+- `/settings/household` and `/settings/members` are consolidated into `/household` per `UI_PLAN.md` §4.1 and §5.5. The page file lives at `src/app/(private)/household/page.tsx`.
+- `/rates` is a new top-level route per `UI_PLAN.md` §4.1 and §5.4. The page file lives at `src/app/(private)/rates/page.tsx`. Symbols subpage at `src/app/(private)/rates/symbols/page.tsx`.
+- When implementing these routes in Slices 6 and 7, update the folder structure in `TECHNICAL_PLAN.md` §1 to reflect the actual file locations.
+
+---
+
 ## Infrastructure
 
 | Resource | Value |

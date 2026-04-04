@@ -231,17 +231,15 @@ Four cards, rendered in this default order. Draggable within session on desktop.
 
 #### Net Worth Card
 - Large `font-mono` display of current net worth in household display currency
-- Total gain/loss (all-time, amount + %)
-- Three change badges: 24h / 7d / 30d — positive uses `--color-positive`,
-  negative uses `--color-negative`
-- "refresh Now" button — calls `triggerManualSnapshot`. See `TECHNICAL_PLAN.md` for
+- Three change badges: 24h / 7d / 30d — each badge shows an up/down arrow alongside
+  the percentage; positive uses `--color-positive`, negative uses `--color-negative`
+- "Refresh Now" button — calls `triggerManualSnapshot`. See `TECHNICAL_PLAN.md` for
   overwrite behaviour.
 
 #### Asset Breakdown Card
 - Donut chart (Recharts `PieChart`) with `--color-chart-*` palette
 - Segments by asset (one segment per distinct symbol held)
 - Legend below: symbol code + percentage of total net worth
-- Clicking a segment filters the Asset Performance Table to that symbol
 
 #### Chart Card
 Two tabs:
@@ -258,13 +256,23 @@ Two tabs:
 
 Both charts use `ResponsiveContainer` to fill card width.
 
-#### Asset Performance Table
+#### Performance Card
+Always-visible summary:
+- Total G/L: prominent `font-mono` amount in display currency with up/down arrow
+  (red/green). Derived G/L % shown below (`gainLossAmount / costBasis × 100`).
+  Both show "—" when no snapshot G/L data exists yet.
+- Best / Worst columns: two columns, up to 3 assets each, ranked by G/L % desc/asc.
+  Best uses `--color-positive`, Worst uses `--color-negative`. Hidden entirely when
+  no assets have G/L data.
+- Expand/collapse toggle icon (ChevronDown/Up) bottom-right.
+
+Expanded state (collapsed by default):
+- Full asset performance table rendered flat (no nested card border) inside the card.
 - Columns: Symbol | Amount | Current Value | Cost Basis | G/L | G/L % | CAGR
-- Client-side sortable on any column. Default: current value desc
-- Filterable by Asset Breakdown donut click — show a clear × to reset
-- Monetary values right-aligned, `font-mono`
-- Positive G/L: `--color-positive`. Negative: `--color-negative`
-- CAGR: annualized %, two decimal places
+- Client-side sortable on any column. Default: current value desc.
+- Monetary values right-aligned, `font-mono`.
+- Positive G/L: `--color-positive`. Negative: `--color-negative`.
+- CAGR: annualized %, two decimal places.
 
 ---
 

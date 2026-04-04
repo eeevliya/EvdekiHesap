@@ -21,6 +21,8 @@ interface AssetPerformanceTableProps {
   /** Symbol filter driven by clicking the donut chart */
   activeSymbol?: string | null
   onClearFilter?: () => void
+  /** When true, renders the table without a Card wrapper (for embedding inside another card) */
+  flat?: boolean
 }
 
 export function AssetPerformanceTable({
@@ -28,6 +30,7 @@ export function AssetPerformanceTable({
   displayCurrency,
   activeSymbol,
   onClearFilter,
+  flat = false,
 }: AssetPerformanceTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('currentValue')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -96,6 +99,117 @@ export function AssetPerformanceTable({
     )
   }
 
+  const tableContent = sorted.length === 0 ? (
+    <EmptyState icon={BarChart2} message="No assets yet" />
+  ) : (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[560px]">
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+            <ColHeader col="symbolCode"     label="Symbol" />
+            <ColHeader col="amount"         label="Amount"        right />
+            <ColHeader col="currentValue"   label="Current Value" right />
+            <ColHeader col="costBasis"      label="Cost Basis"    right />
+            <ColHeader col="gainLossAmount" label="G/L"           right />
+            <ColHeader col="gainLossPct"    label="G/L %"         right />
+            <ColHeader col="cagrValue"      label="CAGR"          right />
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((row) => (
+            <tr
+              key={row.assetId}
+              style={{ borderBottom: '1px solid var(--color-border)' }}
+              className="transition-colors"
+            >
+              {/* Symbol + account */}
+              <td className="py-2.5 pr-4">
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--color-fg-primary)' }}>
+                    {row.symbolCode}
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--color-fg-secondary)' }}>
+                    {row.accountName}
+                  </p>
+                </div>
+              </td>
+
+              {/* Amount */}
+              <td className="py-2.5 text-right">
+                <span className="font-mono text-sm" style={{ color: 'var(--color-fg-primary)' }}>
+                  {row.amount.toLocaleString('en-US', { maximumFractionDigits: 6 })}
+                </span>
+              </td>
+
+              {/* Current value */}
+              <td className="py-2.5 text-right">
+                <span className="font-mono text-sm" style={{ color: 'var(--color-fg-primary)' }}>
+                  {formatCurrency(row.currentValue, displayCurrency)}
+                </span>
+              </td>
+
+              {/* Cost basis */}
+              <td className="py-2.5 text-right">
+                <span className="font-mono text-sm" style={{ color: 'var(--color-fg-secondary)' }}>
+                  {row.costBasis != null
+                    ? formatCurrency(row.costBasis, displayCurrency)
+                    : '—'}
+                </span>
+              </td>
+
+              {/* G/L amount */}
+              <td className="py-2.5 text-right">
+                {row.gainLossAmount != null ? (
+                  <span
+                    className="font-mono text-sm"
+                    style={{ color: row.gainLossAmount >= 0 ? 'var(--color-positive)' : 'var(--color-negative)' }}
+                  >
+                    {row.gainLossAmount >= 0 ? '+' : ''}
+                    {formatCurrency(row.gainLossAmount, displayCurrency)}
+                  </span>
+                ) : (
+                  <span className="font-mono text-sm" style={{ color: 'var(--color-fg-disabled)' }}>—</span>
+                )}
+              </td>
+
+              {/* G/L % */}
+              <td className="py-2.5 text-right">
+                {row.gainLossPct != null ? (
+                  <span
+                    className="font-mono text-sm"
+                    style={{ color: row.gainLossPct >= 0 ? 'var(--color-positive)' : 'var(--color-negative)' }}
+                  >
+                    {formatPct(row.gainLossPct, { showSign: true })}
+                  </span>
+                ) : (
+                  <span className="font-mono text-sm" style={{ color: 'var(--color-fg-disabled)' }}>—</span>
+                )}
+              </td>
+
+              {/* CAGR */}
+              <td className="py-2.5 text-right">
+                <span
+                  className="font-mono text-sm"
+                  style={{
+                    color: row.cagrValue == null
+                      ? 'var(--color-fg-disabled)'
+                      : row.cagrValue >= 0
+                      ? 'var(--color-positive)'
+                      : 'var(--color-negative)',
+                  }}
+                >
+                  {formatCagr(row.cagrValue)}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+
+  if (flat) return tableContent
+
   return (
     <Card>
       <CardHeader>
@@ -123,115 +237,7 @@ export function AssetPerformanceTable({
           </Button>
         )}
       </CardHeader>
-
-      {sorted.length === 0 ? (
-        <EmptyState icon={BarChart2} message="No assets yet" />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px]">
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                <ColHeader col="symbolCode"   label="Symbol" />
-                <ColHeader col="amount"       label="Amount"        right />
-                <ColHeader col="currentValue" label="Current Value" right />
-                <ColHeader col="costBasis"    label="Cost Basis"    right />
-                <ColHeader col="gainLossAmount" label="G/L"         right />
-                <ColHeader col="gainLossPct"  label="G/L %"         right />
-                <ColHeader col="cagrValue"    label="CAGR"          right />
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((row) => (
-                <tr
-                  key={row.assetId}
-                  style={{ borderBottom: '1px solid var(--color-border)' }}
-                  className="transition-colors"
-                >
-                  {/* Symbol + account */}
-                  <td className="py-2.5 pr-4">
-                    <div>
-                      <p className="text-sm font-medium" style={{ color: 'var(--color-fg-primary)' }}>
-                        {row.symbolCode}
-                      </p>
-                      <p className="text-xs" style={{ color: 'var(--color-fg-secondary)' }}>
-                        {row.accountName}
-                      </p>
-                    </div>
-                  </td>
-
-                  {/* Amount */}
-                  <td className="py-2.5 text-right">
-                    <span className="font-mono text-sm" style={{ color: 'var(--color-fg-primary)' }}>
-                      {row.amount.toLocaleString('en-US', { maximumFractionDigits: 6 })}
-                    </span>
-                  </td>
-
-                  {/* Current value */}
-                  <td className="py-2.5 text-right">
-                    <span className="font-mono text-sm" style={{ color: 'var(--color-fg-primary)' }}>
-                      {formatCurrency(row.currentValue, displayCurrency)}
-                    </span>
-                  </td>
-
-                  {/* Cost basis */}
-                  <td className="py-2.5 text-right">
-                    <span className="font-mono text-sm" style={{ color: 'var(--color-fg-secondary)' }}>
-                      {row.costBasis != null
-                        ? formatCurrency(row.costBasis, displayCurrency)
-                        : '—'}
-                    </span>
-                  </td>
-
-                  {/* G/L amount */}
-                  <td className="py-2.5 text-right">
-                    {row.gainLossAmount != null ? (
-                      <span
-                        className="font-mono text-sm"
-                        style={{ color: row.gainLossAmount >= 0 ? 'var(--color-positive)' : 'var(--color-negative)' }}
-                      >
-                        {row.gainLossAmount >= 0 ? '+' : ''}
-                        {formatCurrency(row.gainLossAmount, displayCurrency)}
-                      </span>
-                    ) : (
-                      <span className="font-mono text-sm" style={{ color: 'var(--color-fg-disabled)' }}>—</span>
-                    )}
-                  </td>
-
-                  {/* G/L % */}
-                  <td className="py-2.5 text-right">
-                    {row.gainLossPct != null ? (
-                      <span
-                        className="font-mono text-sm"
-                        style={{ color: row.gainLossPct >= 0 ? 'var(--color-positive)' : 'var(--color-negative)' }}
-                      >
-                        {formatPct(row.gainLossPct, { showSign: true })}
-                      </span>
-                    ) : (
-                      <span className="font-mono text-sm" style={{ color: 'var(--color-fg-disabled)' }}>—</span>
-                    )}
-                  </td>
-
-                  {/* CAGR */}
-                  <td className="py-2.5 text-right">
-                    <span
-                      className="font-mono text-sm"
-                      style={{
-                        color: row.cagrValue == null
-                          ? 'var(--color-fg-disabled)'
-                          : row.cagrValue >= 0
-                          ? 'var(--color-positive)'
-                          : 'var(--color-negative)',
-                      }}
-                    >
-                      {formatCagr(row.cagrValue)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {tableContent}
     </Card>
   )
 }

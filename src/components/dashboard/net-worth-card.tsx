@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { RefreshCw, TrendingUp, TrendingDown } from 'lucide-react'
+import { RefreshCw, ArrowUp, ArrowDown } from 'lucide-react'
 import { Card, CardHeader, CardTitle } from '@/components/shared/card'
 import { Button } from '@/components/ui/button'
 import { triggerManualSnapshot } from '@/lib/actions/snapshots'
@@ -32,7 +32,11 @@ function ChangeBadge({ label, pct }: ChangeBadgeProps) {
   return (
     <div className="flex flex-col items-center gap-0.5">
       <span className="text-xs" style={{ color: 'var(--color-fg-secondary)' }}>{label}</span>
-      <span className="text-sm font-semibold font-mono" style={{ color }}>
+      <span className="inline-flex items-center gap-0.5 text-sm font-semibold font-mono" style={{ color }}>
+        {!isNull && (isPos
+          ? <ArrowUp   className="size-3 shrink-0" />
+          : <ArrowDown className="size-3 shrink-0" />
+        )}
         {isNull ? '—' : formatPct(pct, { showSign: true })}
       </span>
     </div>
@@ -42,8 +46,6 @@ function ChangeBadge({ label, pct }: ChangeBadgeProps) {
 export function NetWorthCard({ data, householdId }: NetWorthCardProps) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-
-  const isPositiveAllTime = (data.changeAllTime ?? 0) >= 0
 
   function handleRefresh() {
     setError(null)
@@ -78,33 +80,6 @@ export function NetWorthCard({ data, householdId }: NetWorthCardProps) {
         >
           {formatCurrency(data.current, data.displayCurrency)}
         </p>
-
-        {/* All-time gain/loss */}
-        <div className="flex items-center gap-2 mt-1">
-          {data.changeAllTime != null ? (
-            <>
-              <span style={{ color: isPositiveAllTime ? 'var(--color-positive)' : 'var(--color-negative)' }}>
-                {isPositiveAllTime ? (
-                  <TrendingUp className="size-4 inline mr-1" />
-                ) : (
-                  <TrendingDown className="size-4 inline mr-1" />
-                )}
-                <span className="font-mono text-sm font-medium">
-                  {isPositiveAllTime ? '+' : ''}
-                  {formatCurrency(data.changeAllTime, data.displayCurrency)}
-                </span>
-              </span>
-              {data.changeAllTimePct != null && (
-                <span className="text-xs font-mono" style={{ color: 'var(--color-fg-secondary)' }}>
-                  ({formatPct(data.changeAllTimePct, { showSign: true })})
-                </span>
-              )}
-              <span className="text-xs" style={{ color: 'var(--color-fg-disabled)' }}>all time</span>
-            </>
-          ) : (
-            <span className="text-sm" style={{ color: 'var(--color-fg-disabled)' }}>No history yet</span>
-          )}
-        </div>
       </div>
 
       {/* 24h / 7d / 30d badges */}

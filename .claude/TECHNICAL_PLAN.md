@@ -1120,7 +1120,10 @@ function cagr(currentValue: number, costBasis: number, daysHeld: number): number
 - Transactions page (`/transactions`) per `UI_PAGES.md` specifications
 - Rates page (`/rates`) per `UI_PAGES.md` specifications
 - Dashboard card order updated and three peek cards added per `UI_PAGES.md §2`
-- All private pages render inside `AppShell` with sidebar on desktop and bottom nav on mobile
+- Ensure AppShell (sidebar on desktop, bottom nav on mobile) is applied globally to all private pages via `src/app/(private)/layout.tsx`. No private page should render navigation independently.
+- **Accounts peek card**: query all accounts for the household with their total asset value computed from current `exchange_rates`. Reuse the same data pattern as the Accounts page.
+- **Transactions peek card**: query the 5 most recent transactions for the household with joined asset and symbol data. Reuse the same query pattern as the Transactions page.
+- **Rates peek card and Rates left panel 24h change**: compute per symbol by comparing the most recent `exchange_rates` row against the row with `fetched_at` closest to 24 hours ago. If no row exists older than 1 hour, treat 24h change as unavailable and show "—".
 
 **Testable outcome**: PM can navigate between all pages on desktop and mobile; all layouts match `UI_PAGES.md` specifications.
 

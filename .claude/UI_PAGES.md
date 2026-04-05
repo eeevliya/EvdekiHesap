@@ -174,19 +174,34 @@ and is not in scope for initial implementation.
   options (date, amount, type).
 - Transactions rendered as cards, one per row.
 
-**Single-symbol transaction card (Deposit, Debit, Transfer, Interest):**
+**Card header format (all types):**
 ```
-[Transaction Name]  ([Type Badge])                    [Date]
-[Symbol Full Name] ([Account Name] - [Symbol Code])   [Amount, color-coded]
+[Name]  ([Badge])                                      [Date]
 ```
-Amount color: positive tint for Deposit/Interest, negative tint for Debit, neutral for Transfer.
 
-**Trade transaction card:**
-```
-Trade  ([Type Badge])                                  [Date]
-[To Symbol Full Name] ([Account] - [Symbol Code])      [G/L amount + % in household currency, color-coded]
-[from_amount] [from_symbol] → [to_amount] [to_symbol]
-```
+`[Name]` and `[Badge]` are determined by transaction type as follows:
+
+**Deposit / Debit / Interest / Transfer:**
+- `[Name]`: symbol full name of the primary asset
+- `[Badge]`: Type badge ("Deposit", "Debit", "Interest", "Transfer")
+- Second line: `[Symbol Full Name] ([Account Name] — [Symbol Code])   [Amount, color-coded]`
+  - Amount color: positive tint for Deposit/Interest, negative tint for Debit, neutral for Transfer
+
+**Trade — exactly one fiat leg:**
+- `[Name]`: full name of the non-fiat symbol
+- `[Badge]`: directional — "Buy" (positive tint) if `to_asset` is the non-fiat symbol; "Sell" (negative tint) if `from_asset` is the non-fiat symbol. Replaces the Type badge.
+- Second line: `[Account] — [Symbol Code]   [G/L amount + % in household currency, color-coded]`
+- Third line: `[from_amount] [from_symbol] → [to_amount] [to_symbol]`
+
+**Trade — both legs fiat:**
+- `[Name]`: `[from_symbol_code] → [to_symbol_code]`
+- `[Badge]`: "Exchange" (neutral light gray background)
+- Third line: `[from_amount] [from_symbol] → [to_amount] [to_symbol]`
+
+**Trade — both legs non-fiat** *(defensive — not currently reachable from the UI)*:
+- `[Name]`: `[from_symbol_code] → [to_symbol_code]`
+- `[Badge]`: "Trade" (neutral light gray background)
+- Third line: `[from_amount] [from_symbol] → [to_amount] [to_symbol]`
 
 **Expanded state (tap to expand, all types):**
 - Fee: fee amount + symbol, or "None"

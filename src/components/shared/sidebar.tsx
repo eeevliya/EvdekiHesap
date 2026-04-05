@@ -8,7 +8,7 @@ import {
   Wallet,
   ArrowLeftRight,
   TrendingUp,
-  Home,
+  Users,
   Settings,
 } from 'lucide-react'
 import {
@@ -25,7 +25,7 @@ const navItems = [
   { icon: Wallet,          label: 'Accounts',      href: '/accounts' },
   { icon: ArrowLeftRight,  label: 'Transactions',  href: '/transactions' },
   { icon: TrendingUp,      label: 'Rates',         href: '/rates' },
-  { icon: Home,            label: 'Household',     href: '/household' },
+  { icon: Users,           label: 'Household',     href: '/household' },
   { icon: Settings,        label: 'Settings',      href: '/settings' },
 ]
 

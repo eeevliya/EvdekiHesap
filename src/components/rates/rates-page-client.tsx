@@ -1,14 +1,16 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { TrendingUp } from 'lucide-react'
+import { TrendingUp, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/shared/empty-state'
 import { RelativeTime } from '@/components/shared/relative-time'
 import { RateHistoricalChart } from './rate-historical-chart'
 import { ConvertModal } from './convert-modal'
 import { getSymbolDetail } from '@/lib/actions/rates'
+import { triggerPriceFetch } from '@/lib/actions/prices'
 import { formatPct, formatCurrency } from '@/lib/utils/format'
 import type { SymbolRateRow, SymbolDetailData, RatesPageData } from '@/lib/actions/rates'
 import type { SymbolType } from '@/lib/types/domain'
@@ -40,6 +42,7 @@ interface RatesPageClientProps {
 }
 
 export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPageClientProps) {
+  const router = useRouter()
   const [showConvert, setShowConvert] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(
     initialSelectedId ?? (data.symbols.find((s) => s.isActive)?.symbolId ?? null)
@@ -47,6 +50,7 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
   const [detail, setDetail] = useState<SymbolDetailData | null>(null)
   const [detailLoading, startDetailTransition] = useTransition()
   const [collapsedTypes, setCollapsedTypes] = useState<Set<SymbolType>>(new Set())
+  const [fetching, startFetchTransition] = useTransition()
 
   function loadDetail(symbolId: string) {
     setSelectedId(symbolId)
@@ -65,6 +69,13 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
     })
   }
 
+  function handleFetchPrices() {
+    startFetchTransition(async () => {
+      await triggerPriceFetch()
+      router.refresh()
+    })
+  }
+
   // Group symbols by type
   const grouped = TYPE_ORDER.reduce<Record<string, SymbolRateRow[]>>((acc, type) => {
     const syms = data.symbols.filter((s) => s.type === type)
@@ -77,11 +88,21 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
       {/* ── Desktop layout ── */}
       <div className="hidden md:flex flex-col h-full">
         {/* Page header */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-1">
           <h1 className="text-xl font-semibold" style={{ color: 'var(--color-fg-primary)' }}>
             Rates
           </h1>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleFetchPrices}
+              disabled={fetching}
+              className="min-h-[44px] gap-2"
+            >
+              <RefreshCw className={`size-4 ${fetching ? 'animate-spin' : ''}`} />
+              {fetching ? 'Fetching…' : 'Fetch Prices'}
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -105,6 +126,14 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
             )}
           </div>
         </div>
+
+        {/* Last updated */}
+        {data.lastUpdated && (
+          <div className="flex items-center gap-1 mb-4">
+            <span className="text-xs" style={{ color: 'var(--color-fg-disabled)' }}>Last updated</span>
+            <RelativeTime isoString={data.lastUpdated} />
+          </div>
+        )}
 
         <div className="flex gap-5 flex-1 min-h-0">
           {/* Symbol list — 35% */}
@@ -210,19 +239,52 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
       {/* ── Mobile layout ── */}
       <div className="md:hidden">
         {/* Page header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-1">
           <h1 className="text-xl font-semibold" style={{ color: 'var(--color-fg-primary)' }}>
             Rates
           </h1>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowConvert(true)}
-            className="min-h-[44px]"
-          >
-            Convert
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleFetchPrices}
+              disabled={fetching}
+              className="min-h-[44px] gap-1.5"
+            >
+              <RefreshCw className={`size-4 ${fetching ? 'animate-spin' : ''}`} />
+              {fetching ? 'Fetching…' : 'Fetch'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowConvert(true)}
+              className="min-h-[44px]"
+            >
+              Convert
+            </Button>
+            {isManager && (
+              <Link
+                href="/rates/symbols"
+                className="inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium min-h-[44px]"
+                style={{
+                  background: 'var(--color-bg-card)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-fg-primary)',
+                }}
+              >
+                Manage
+              </Link>
+            )}
+          </div>
         </div>
+
+        {/* Last updated */}
+        {data.lastUpdated && (
+          <div className="flex items-center gap-1 mb-4">
+            <span className="text-xs" style={{ color: 'var(--color-fg-disabled)' }}>Last updated</span>
+            <RelativeTime isoString={data.lastUpdated} />
+          </div>
+        )}
 
         {data.symbols.length === 0 ? (
           <EmptyState icon={TrendingUp} message="No symbols available" />
@@ -246,19 +308,6 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
 }
 
 // ─── Desktop symbol detail panel ──────────────────────────────────────────────
-
-function ChangeIndicator({ label, pct }: { label: string; pct: number | null }) {
-  if (pct == null) return null
-  const color = pct >= 0 ? 'var(--color-positive)' : 'var(--color-negative)'
-  return (
-    <div className="flex flex-col items-center gap-0.5">
-      <span className="text-xs" style={{ color: 'var(--color-fg-secondary)' }}>{label}</span>
-      <span className="font-mono text-sm font-semibold" style={{ color }}>
-        {formatPct(pct, { showSign: true })}
-      </span>
-    </div>
-  )
-}
 
 function SymbolDetailPanel({ detail }: { detail: SymbolDetailData }) {
   const hasIndicator = detail.change24h != null || detail.change7d != null ||
@@ -415,13 +464,18 @@ function MobileSymbolCard({ sym }: { sym: SymbolRateRow }) {
 
       {isExpanded && (
         <div
-          className="px-4 pb-3 pt-2"
+          className="px-4 pb-3 pt-2 space-y-3"
           style={{ borderTop: '1px solid var(--color-border)' }}
         >
           <div className="grid grid-cols-4 gap-2">
             <ChangeIndicator label="24h" pct={sym.change24hPct} />
-            {/* 1W/1M/1Y not available in peek data — would need detail fetch */}
           </div>
+          {sym.fetchedAt && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs" style={{ color: 'var(--color-fg-disabled)' }}>Updated</span>
+              <RelativeTime isoString={sym.fetchedAt} />
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -13,13 +13,26 @@ export default async function SnapshotsPage() {
   // Get the user's first household (MVP: single household)
   const { data: membership } = await supabase
     .from('household_members')
-    .select('household_id')
+    .select('household_id, role')
     .eq('user_id', user.id)
     .order('joined_at', { ascending: true })
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (!membership) redirect('/onboarding')
+
+  if (membership.role !== 'manager') {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-sm font-medium" style={{ color: 'var(--color-fg-primary)' }}>
+          Permission denied
+        </p>
+        <p className="text-sm mt-1" style={{ color: 'var(--color-fg-secondary)' }}>
+          Only managers can access this page.
+        </p>
+      </div>
+    )
+  }
 
   const householdId = membership.household_id
 

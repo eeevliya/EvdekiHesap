@@ -22,45 +22,48 @@ interface DashboardClientProps {
  */
 export function DashboardClient({ data }: DashboardClientProps) {
   return (
-    <div className="grid gap-5 items-start grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-      {/* ── Column 1 ── */}
-      <div className="flex flex-col gap-5">
-        <NetWorthCard
-          data={data.netWorth}
-          householdId={data.householdId}
-        />
-        <PerformanceCard
-          data={data.performance}
-          displayCurrency={data.netWorth.displayCurrency}
-        />
-      </div>
-
-      {/* ── Columns 2 (and 3 on xl) ──
-          On md: this wrapper is a single grid item — AB and Chart stack inside
-                 it with no row-height gap between them.
-          On xl: xl:contents dissolves the wrapper so AB and Chart become
-                 direct grid children and land in cols 2 and 3 respectively. */}
-      <div className="flex flex-col gap-5 xl:contents">
-        <AssetBreakdownChart
-          data={data.assetBreakdown}
-          displayCurrency={data.netWorth.displayCurrency}
-        />
-        <div className="xl:col-start-3 xl:row-start-1">
-          <PerformanceChart
-            data={data.chartData}
-            chartSymbols={data.chartSymbols}
+    <div className="space-y-5">
+      {/* ── Top section: NW/Perf + AssetBreakdown + Chart ── */}
+      <div className="grid gap-5 items-start grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+        {/* Column 1 */}
+        <div className="flex flex-col gap-5">
+          <NetWorthCard
+            data={data.netWorth}
+            householdId={data.householdId}
+          />
+          <PerformanceCard
+            data={data.performance}
             displayCurrency={data.netWorth.displayCurrency}
           />
         </div>
+
+        {/* Columns 2 (and 3 on xl) —
+            On md: single grid item; AB and Chart stack inside.
+            On xl: xl:contents dissolves wrapper → AB → col 2, Chart → col 3. */}
+        <div className="flex flex-col gap-5 xl:contents">
+          <AssetBreakdownChart
+            data={data.assetBreakdown}
+            displayCurrency={data.netWorth.displayCurrency}
+          />
+          <div className="xl:col-start-3 xl:row-start-1">
+            <PerformanceChart
+              data={data.chartData}
+              chartSymbols={data.chartSymbols}
+              displayCurrency={data.netWorth.displayCurrency}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* ── Peek cards — row 2 on xl (cols 1-3), flow naturally on md/mobile ── */}
-      <AccountsPeekCard
-        accounts={data.peekAccounts}
-        displayCurrency={data.netWorth.displayCurrency}
-      />
-      <TransactionsPeekCard transactions={data.peekTransactions} />
-      <RatesPeekCard rates={data.peekRates} />
+      {/* ── Peek cards — always in their own row directly below the top section ── */}
+      <div className="grid gap-5 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+        <AccountsPeekCard
+          accounts={data.peekAccounts}
+          displayCurrency={data.netWorth.displayCurrency}
+        />
+        <TransactionsPeekCard transactions={data.peekTransactions} />
+        <RatesPeekCard rates={data.peekRates} />
+      </div>
     </div>
   )
 }

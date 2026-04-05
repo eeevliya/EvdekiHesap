@@ -4,19 +4,17 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
-  LayoutDashboard,
   Wallet,
   ArrowLeftRight,
   TrendingUp,
-  Home,
+  Users,
 } from 'lucide-react'
 
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard',    href: '/dashboard' },
-  { icon: Wallet,          label: 'Accounts',     href: '/accounts' },
-  { icon: ArrowLeftRight,  label: 'Transactions', href: '/transactions' },
-  { icon: TrendingUp,      label: 'Rates',        href: '/rates' },
-  { icon: Home,            label: 'Household',    href: '/household' },
+  { icon: Wallet,         label: 'Accounts',     href: '/accounts' },
+  { icon: ArrowLeftRight, label: 'Transactions', href: '/transactions' },
+  { icon: TrendingUp,     label: 'Rates',        href: '/rates' },
+  { icon: Users,          label: 'Household',    href: '/household' },
 ]
 
 export function BottomNav() {

@@ -1,6 +1,6 @@
 'use client'
 
-import { MoreVertical, Settings } from 'lucide-react'
+import { MoreVertical, Settings, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import {
   DropdownMenu,
@@ -25,9 +25,18 @@ export function TopHeader({ title }: TopHeaderProps) {
         borderBottom: '1px solid var(--color-border)',
       }}
     >
-      <h1 className="text-lg font-semibold" style={{ color: 'var(--color-fg-primary)' }}>
-        {title}
-      </h1>
+      <div className="flex items-center gap-2.5">
+        <Link
+          href="/dashboard"
+          className="flex size-8 items-center justify-center rounded-lg shrink-0"
+          style={{ background: 'var(--color-accent)' }}
+        >
+          <TrendingUp className="size-4" style={{ color: 'var(--color-bg-sidebar)' }} />
+        </Link>
+        <h1 className="text-lg font-semibold" style={{ color: 'var(--color-fg-primary)' }}>
+          {title}
+        </h1>
+      </div>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

@@ -20,6 +20,7 @@ export interface RatesPageData {
   symbols: SymbolRateRow[]
   displayCurrency: DisplayCurrency
   householdId: string
+  lastUpdated: string | null
 }
 
 export interface HistoricalRatePoint {
@@ -116,6 +117,7 @@ export async function getRatesPageData(): Promise<RatesPageData | null> {
       })),
       displayCurrency,
       householdId,
+      lastUpdated: null,
     }
   }
 
@@ -140,8 +142,6 @@ export async function getRatesPageData(): Promise<RatesPageData | null> {
     oldestBySymbol.set(r.symbol_id, r)
   }
 
-  const symMap = new Map(allSymbols.map((s) => [s.id, s]))
-
   const symbols: SymbolRateRow[] = allSymbols.map((sym) => {
     const latest = latestBySymbol.get(sym.id)
     const oldest = oldestBySymbol.get(sym.id)
@@ -159,7 +159,14 @@ export async function getRatesPageData(): Promise<RatesPageData | null> {
     }
   })
 
-  return { symbols, displayCurrency, householdId }
+  // Most recent fetched_at across all active symbols
+  const lastUpdated = symbols.reduce<string | null>((max, s) => {
+    if (!s.fetchedAt) return max
+    if (!max || s.fetchedAt > max) return s.fetchedAt
+    return max
+  }, null)
+
+  return { symbols, displayCurrency, householdId, lastUpdated }
 }
 
 // ─── getSymbolDetail ──────────────────────────────────────────────────────────

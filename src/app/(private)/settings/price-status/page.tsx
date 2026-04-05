@@ -10,6 +10,29 @@ export default async function PriceStatusPage() {
 
   if (!user) redirect('/login')
 
+  const { data: membership } = await supabase
+    .from('household_members')
+    .select('role')
+    .eq('user_id', user.id)
+    .order('joined_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (!membership) redirect('/onboarding')
+
+  if (membership.role !== 'manager') {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-sm font-medium" style={{ color: 'var(--color-fg-primary)' }}>
+          Permission denied
+        </p>
+        <p className="text-sm mt-1" style={{ color: 'var(--color-fg-secondary)' }}>
+          Only managers can access this page.
+        </p>
+      </div>
+    )
+  }
+
   // Load active symbols — primary_conversion_fiat needed for rate derivation
   const { data: symbols } = await supabase
     .from('symbols')

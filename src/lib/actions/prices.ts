@@ -32,6 +32,7 @@ export async function triggerPriceFetch(): Promise<ActionResult<PriceFetchSummar
     }
 
     revalidatePath('/settings/price-status')
+    revalidatePath('/rates')
     return { success: true, data: summary }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

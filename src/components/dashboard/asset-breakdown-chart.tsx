@@ -31,6 +31,7 @@ interface AssetBreakdownChartProps {
   displayCurrency: DisplayCurrency
   onSegmentClick?: (symbolCode: string | null) => void
   activeSymbol?: string | null
+  className?: string
 }
 
 export function AssetBreakdownChart({
@@ -38,12 +39,13 @@ export function AssetBreakdownChart({
   displayCurrency,
   onSegmentClick,
   activeSymbol,
+  className,
 }: AssetBreakdownChartProps) {
   const colorMap = symbolColorMap(data.map((d) => d.symbolCode))
 
   if (data.length === 0) {
     return (
-      <Card>
+      <Card className={className}>
         <CardHeader><CardTitle>Asset Breakdown</CardTitle></CardHeader>
         <EmptyState icon={PieIcon} message="No assets yet" />
       </Card>
@@ -67,7 +69,7 @@ export function AssetBreakdownChart({
   }
 
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader><CardTitle>Asset Breakdown</CardTitle></CardHeader>
 
       {/* Donut chart */}

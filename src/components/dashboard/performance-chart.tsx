@@ -34,9 +34,10 @@ interface PerformanceChartProps {
   data: ChartPoint[]
   chartSymbols: string[]
   displayCurrency: DisplayCurrency
+  className?: string
 }
 
-export function PerformanceChart({ data, chartSymbols, displayCurrency }: PerformanceChartProps) {
+export function PerformanceChart({ data, chartSymbols, displayCurrency, className }: PerformanceChartProps) {
   const [range, setRange] = useState<TimeRange>('1M')
   const colorMap = symbolColorMap(chartSymbols)
 
@@ -66,7 +67,7 @@ export function PerformanceChart({ data, chartSymbols, displayCurrency }: Perfor
 
   if (data.length === 0) {
     return (
-      <Card>
+      <Card className={className}>
         <CardHeader>
           <CardTitle>Performance</CardTitle>
         </CardHeader>
@@ -76,7 +77,7 @@ export function PerformanceChart({ data, chartSymbols, displayCurrency }: Perfor
   }
 
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader>
         <CardTitle>Performance</CardTitle>
         <div className="flex gap-1">

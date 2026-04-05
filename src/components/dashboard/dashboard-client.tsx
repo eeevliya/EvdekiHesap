@@ -24,7 +24,9 @@ export function DashboardClient({ data }: DashboardClientProps) {
   return (
     <div className="space-y-5">
       {/* ── Top section: NW/Perf + AssetBreakdown + Chart ── */}
-      <div className="grid gap-5 items-start grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+      {/* items-start removed so cells stretch to the tallest column (col 1: NW+Perf).
+          h-full forwarded to cards in AB and PC so they fill the stretched cells. */}
+      <div className="grid gap-5 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         {/* Column 1 */}
         <div className="flex flex-col gap-5">
           <NetWorthCard
@@ -44,12 +46,14 @@ export function DashboardClient({ data }: DashboardClientProps) {
           <AssetBreakdownChart
             data={data.assetBreakdown}
             displayCurrency={data.netWorth.displayCurrency}
+            className="xl:h-full"
           />
-          <div className="xl:col-start-3 xl:row-start-1">
+          <div className="xl:col-start-3 xl:row-start-1 xl:h-full">
             <PerformanceChart
               data={data.chartData}
               chartSymbols={data.chartSymbols}
               displayCurrency={data.netWorth.displayCurrency}
+              className="h-full"
             />
           </div>
         </div>

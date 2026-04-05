@@ -54,7 +54,7 @@ Cards 1–4 are unchanged from UI_PLAN.md §5.1. Cards 5–7 are specified below
 - Content: list of account rows, one per account
   - Each row: account name (bold) left | total value in household display currency right
     (`font-mono`, accent color)
-  - Clicking a row routes to `/accounts` with that account pre-selected in the detail panel
+  - Clicking a row routes to `/accounts?account=<id>` with that account pre-selected in the detail panel
 - Shows all accounts — no row cap
 - Empty state: "No accounts yet" with a "Add Account" CTA button
 
@@ -103,7 +103,7 @@ within the page content area.
   currency (bottom right, `font-mono`, accent color)
 - Clicking a card selects it: card gets `border-[--color-accent]` border, detail panel loads
   on the right
-- First account in the list is selected by default on page load
+- First account in the list is selected by default on page load. If a `?account=<id>` query parameter is present, that account is selected instead and its detail panel is shown immediately.
 - Add Account button in the page header (top right)
 - Edit and Delete icon buttons on each card, visibility rules per UI_PLAN.md §5.2
 

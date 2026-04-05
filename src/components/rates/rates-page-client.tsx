@@ -93,24 +93,31 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
             Rates
           </h1>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
+            <button
               onClick={handleFetchPrices}
               disabled={fetching}
-              className="min-h-[44px] gap-2"
+              className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium min-h-[44px] transition-opacity disabled:opacity-60"
+              style={{
+                background: 'var(--color-accent)',
+                color: 'var(--color-bg-sidebar)',
+                boxShadow: '0 4px 12px oklch(0 0 0 / 0.25)',
+              }}
             >
               <RefreshCw className={`size-4 ${fetching ? 'animate-spin' : ''}`} />
               {fetching ? 'Fetching…' : 'Fetch Prices'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
+            </button>
+            <button
               onClick={() => setShowConvert(true)}
-              className="min-h-[44px]"
+              className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium min-h-[44px]"
+              style={{
+                background: 'var(--color-bg-card)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-fg-primary)',
+                boxShadow: '0 4px 12px oklch(0 0 0 / 0.15)',
+              }}
             >
               Convert
-            </Button>
+            </button>
             {isManager && (
               <Link
                 href="/rates/symbols"
@@ -119,6 +126,7 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
                   background: 'var(--color-bg-card)',
                   border: '1px solid var(--color-border)',
                   color: 'var(--color-fg-primary)',
+                  boxShadow: '0 4px 12px oklch(0 0 0 / 0.15)',
                 }}
               >
                 Manage Symbols
@@ -172,6 +180,11 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
                         : pct >= 0
                         ? 'var(--color-positive)'
                         : 'var(--color-negative)'
+                      // physical_commodity symbols (gold) use the name as primary label;
+                      // other symbols use the ticker code as primary with name as subtitle.
+                      const useNameAsPrimary = sym.type === 'physical_commodity' && !!sym.name
+                      const primaryLabel = useNameAsPrimary ? sym.name! : sym.code
+                      const subLabel = useNameAsPrimary ? null : sym.name
 
                       return (
                         <button
@@ -186,11 +199,11 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
                         >
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-semibold" style={{ color: 'var(--color-fg-primary)' }}>
-                              {sym.code}
+                              {primaryLabel}
                             </p>
-                            {sym.name && (
+                            {subLabel && (
                               <p className="text-xs truncate" style={{ color: 'var(--color-fg-secondary)' }}>
-                                {sym.name}
+                                {subLabel}
                               </p>
                             )}
                           </div>
@@ -244,24 +257,31 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
             Rates
           </h1>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
+            <button
               onClick={handleFetchPrices}
               disabled={fetching}
-              className="min-h-[44px] gap-1.5"
+              className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium min-h-[44px] transition-opacity disabled:opacity-60"
+              style={{
+                background: 'var(--color-accent)',
+                color: 'var(--color-bg-sidebar)',
+                boxShadow: '0 4px 12px oklch(0 0 0 / 0.25)',
+              }}
             >
               <RefreshCw className={`size-4 ${fetching ? 'animate-spin' : ''}`} />
-              {fetching ? 'Fetching…' : 'Fetch'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
+              {fetching ? '…' : 'Fetch'}
+            </button>
+            <button
               onClick={() => setShowConvert(true)}
-              className="min-h-[44px]"
+              className="inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium min-h-[44px]"
+              style={{
+                background: 'var(--color-bg-card)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-fg-primary)',
+                boxShadow: '0 4px 12px oklch(0 0 0 / 0.15)',
+              }}
             >
               Convert
-            </Button>
+            </button>
             {isManager && (
               <Link
                 href="/rates/symbols"
@@ -270,6 +290,7 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
                   background: 'var(--color-bg-card)',
                   border: '1px solid var(--color-border)',
                   color: 'var(--color-fg-primary)',
+                  boxShadow: '0 4px 12px oklch(0 0 0 / 0.15)',
                 }}
               >
                 Manage
@@ -319,9 +340,9 @@ function SymbolDetailPanel({ detail }: { detail: SymbolDetailData }) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: 'var(--color-fg-primary)' }}>
-            {detail.code}
+            {detail.type === 'physical_commodity' && detail.name ? detail.name : detail.code}
           </h2>
-          {detail.name && (
+          {detail.type !== 'physical_commodity' && detail.name && (
             <p className="text-sm mt-0.5" style={{ color: 'var(--color-fg-secondary)' }}>
               {detail.name}
             </p>
@@ -443,14 +464,21 @@ function MobileSymbolCard({ sym }: { sym: SymbolRateRow }) {
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-sm" style={{ color: 'var(--color-fg-primary)' }}>
-            {sym.code}
-          </p>
-          {sym.name && (
-            <p className="text-xs" style={{ color: 'var(--color-fg-secondary)' }}>
-              {sym.name}
-            </p>
-          )}
+          {(() => {
+            const useNameAsPrimary = sym.type === 'physical_commodity' && !!sym.name
+            return (
+              <>
+                <p className="font-semibold text-sm" style={{ color: 'var(--color-fg-primary)' }}>
+                  {useNameAsPrimary ? sym.name : sym.code}
+                </p>
+                {!useNameAsPrimary && sym.name && (
+                  <p className="text-xs" style={{ color: 'var(--color-fg-secondary)' }}>
+                    {sym.name}
+                  </p>
+                )}
+              </>
+            )
+          })()}
         </div>
         <div className="text-right">
           <p className="font-mono text-sm" style={{ color: 'var(--color-fg-primary)' }}>

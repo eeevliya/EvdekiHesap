@@ -33,9 +33,9 @@ export function TopHeader({ title }: TopHeaderProps) {
         >
           <TrendingUp className="size-4" style={{ color: 'var(--color-bg-sidebar)' }} />
         </Link>
-        <h1 className="text-lg font-semibold" style={{ color: 'var(--color-fg-primary)' }}>
-          {title}
-        </h1>
+        <span className="text-lg font-semibold" style={{ color: 'var(--color-fg-primary)' }}>
+          EvdekiHesap
+        </span>
       </div>
 
       <DropdownMenu>

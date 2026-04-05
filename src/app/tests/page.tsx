@@ -16,16 +16,17 @@ export default function TestsPage() {
     {
       slice: "Slice 2 — Accounts & Settings",
       routes: [
-        { path: "/accounts", label: "Accounts list" },
-        { path: "/settings/household", label: "Household settings" },
-        { path: "/settings/members", label: "Members & roles" },
-        { path: "/settings/symbols", label: "Symbol management" },
+        { path: "/accounts", label: "Accounts list (two-col desktop / accordion mobile)" },
+        { path: "/accounts?account=[id]", label: "Accounts with pre-selected account (replace [id])" },
+        { path: "/settings/household", label: "Household settings (→ redirects to /household)" },
+        { path: "/settings/members", label: "Members & roles (→ redirects to /household)" },
+        { path: "/settings/symbols", label: "Symbol management (→ redirects to /rates/symbols)" },
       ],
     },
     {
       slice: "Slice 3 — Transactions",
       routes: [
-        { path: "/transactions", label: "Transaction list" },
+        { path: "/transactions", label: "Transaction list (filter panel + table desktop / cards mobile)" },
         { path: "/transactions/new", label: "New transaction form" },
       ],
     },
@@ -45,7 +46,17 @@ export default function TestsPage() {
     },
     {
       slice: "Slice 6 — Dashboard",
-      routes: [{ path: "/dashboard", label: "Portfolio dashboard" }],
+      routes: [{ path: "/dashboard", label: "Portfolio dashboard (with Accounts / Transactions / Rates peek cards)" }],
+    },
+    {
+      slice: "Slice 7 — Inner Pages UI",
+      routes: [
+        { path: "/accounts", label: "Accounts — two-column split (desktop) / accordion (mobile)" },
+        { path: "/transactions", label: "Transactions — filter panel + table (desktop) / card list (mobile)" },
+        { path: "/rates", label: "Rates — symbol list + detail panel + chart + convert button" },
+        { path: "/rates/symbols", label: "Manage Symbols (Manager only)" },
+        { path: "/household", label: "Household — settings + members in one page" },
+      ],
     },
   ];
 

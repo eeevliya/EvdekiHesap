@@ -1,14 +1,18 @@
 import { redirect } from 'next/navigation'
 import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server'
-import { AccountsManager } from './accounts-manager'
-import type { Account, Asset, Symbol, SymbolType } from '@/lib/types/domain'
+import { AppShell } from '@/components/shared/app-shell'
+import { AccountsPageClient } from '@/components/accounts/accounts-page-client'
+import type { Symbol, SymbolType, DisplayCurrency } from '@/lib/types/domain'
+import type { AssetWithRate, AccountRow } from '@/components/accounts/account-dialogs'
 
-interface AccountRow extends Account {
-  ownerName: string
-  assets: (Asset & { symbol: Symbol })[]
-}
+export const dynamic = 'force-dynamic'
 
-export default async function AccountsPage() {
+export default async function AccountsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ account?: string }>
+}) {
+  const params = await searchParams
   const supabase = await createServerClient()
 
   const {
@@ -19,7 +23,7 @@ export default async function AccountsPage() {
 
   const { data: membership } = await supabase
     .from('household_members')
-    .select('household_id, role')
+    .select('household_id, role, households(display_currency)')
     .eq('user_id', user.id)
     .order('joined_at', { ascending: true })
     .limit(1)
@@ -29,35 +33,31 @@ export default async function AccountsPage() {
 
   const householdId = membership.household_id
   const role = membership.role as 'manager' | 'editor' | 'viewer'
+  const household = membership.households as unknown as { display_currency: string } | null
+  const displayCurrency = (household?.display_currency ?? 'TRY') as DisplayCurrency
 
-  // Use service role to join profiles (RLS restricts profile reads to own row)
+  // Display name for AppShell
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', user.id)
+    .maybeSingle()
+  const displayName = profile?.display_name ?? user.email?.split('@')[0] ?? 'User'
+
   const serviceClient = createServiceRoleClient()
 
-  // Fetch accounts with owner profile
+  // Fetch accounts with owner display names
   const { data: accountsRaw } = await serviceClient
     .from('accounts')
-    .select('*, profiles(display_name)')
+    .select('id, household_id, owner_id, name, institution, account_identifier, profiles(display_name)')
     .eq('household_id', householdId)
     .order('created_at', { ascending: true })
 
-  // Fetch assets with their symbols for this household
+  // Fetch assets with symbols
   const { data: assetsRaw } = await supabase
     .from('assets')
-    .select('*, symbols(*)')
+    .select('id, household_id, account_id, symbol_id, amount, created_at, updated_at, symbols(*)')
     .eq('household_id', householdId)
-
-  // Fetch all symbols available (global + household)
-  const { data: globalSymbolsRaw } = await supabase
-    .from('symbols')
-    .select('*')
-    .is('household_id', null)
-    .order('code')
-
-  const { data: householdSymbolsRaw } = await supabase
-    .from('symbols')
-    .select('*')
-    .eq('household_id', householdId)
-    .order('code')
 
   function mapSymbol(row: Record<string, unknown>): Symbol {
     return {
@@ -75,34 +75,150 @@ export default async function AccountsPage() {
     }
   }
 
+  // Gather all symbol IDs from assets
+  const assetList = (assetsRaw ?? []) as unknown as Array<{
+    id: string
+    household_id: string
+    account_id: string
+    symbol_id: string
+    amount: number
+    created_at: string
+    updated_at: string
+    symbols: Record<string, unknown>
+  }>
+
+  const symbolIds = [...new Set(assetList.map((a) => a.symbol_id))]
+
+  // Fetch latest exchange rates for all symbols
+  const rateMap = new Map<string, { rate: number; fetchedAt: string }>()
+  let usdRate: number | null = null
+  let eurRate: number | null = null
+
+  if (symbolIds.length > 0) {
+    const { data: fxSymbols } = await supabase
+      .from('symbols')
+      .select('id, code')
+      .in('code', ['USD', 'EUR'])
+      .is('household_id', null)
+
+    const usdSymbolId = (fxSymbols ?? []).find((s) => s.code === 'USD')?.id ?? null
+    const eurSymbolId = (fxSymbols ?? []).find((s) => s.code === 'EUR')?.id ?? null
+
+    const allSymbolIds = [
+      ...new Set([
+        ...symbolIds,
+        ...[usdSymbolId, eurSymbolId].filter(Boolean) as string[],
+      ]),
+    ]
+
+    const { data: rates } = await supabase
+      .from('exchange_rates')
+      .select('symbol_id, rate, fetched_at')
+      .in('symbol_id', allSymbolIds)
+      .order('fetched_at', { ascending: false })
+
+    const seen = new Set<string>()
+    for (const r of (rates ?? []) as { symbol_id: string; rate: number; fetched_at: string }[]) {
+      if (!seen.has(r.symbol_id)) {
+        rateMap.set(r.symbol_id, { rate: Number(r.rate), fetchedAt: r.fetched_at })
+        if (r.symbol_id === usdSymbolId) usdRate = Number(r.rate)
+        if (r.symbol_id === eurSymbolId) eurRate = Number(r.rate)
+        seen.add(r.symbol_id)
+      }
+    }
+  }
+
+  // Fetch all available symbols for the asset picker
+  const { data: globalSymbolsRaw } = await supabase
+    .from('symbols')
+    .select('*')
+    .is('household_id', null)
+    .order('code')
+
+  const { data: householdSymbolsRaw } = await supabase
+    .from('symbols')
+    .select('*')
+    .eq('household_id', householdId)
+    .order('code')
+
   const allSymbols: Symbol[] = [
     ...(globalSymbolsRaw ?? []).map((r) => mapSymbol(r as unknown as Record<string, unknown>)),
     ...(householdSymbolsRaw ?? []).map((r) => mapSymbol(r as unknown as Record<string, unknown>)),
   ]
 
-  // Build asset map by account_id
-  const assetsByAccount = new Map<string, (Asset & { symbol: Symbol })[]>()
-  for (const rawAsset of assetsRaw ?? []) {
-    const r = rawAsset as unknown as Record<string, unknown>
-    const symbolRaw = r.symbols as Record<string, unknown>
-    const asset: Asset & { symbol: Symbol } = {
-      id: r.id as string,
-      householdId: r.household_id as string,
-      accountId: r.account_id as string,
-      symbolId: r.symbol_id as string,
-      amount: Number(r.amount),
-      createdAt: r.created_at as string,
-      updatedAt: r.updated_at as string,
-      symbol: mapSymbol(symbolRaw),
+  // Compute current value per asset
+  function computeValue(symbolId: string, amount: number, primaryConversionFiat: string | null): {
+    currentValue: number | null
+  } {
+    const rateEntry = rateMap.get(symbolId)
+    if (!rateEntry) return { currentValue: null }
+    const rate = rateEntry.rate
+    let valueTry: number
+    if (primaryConversionFiat === 'USD') {
+      if (!usdRate) return { currentValue: null }
+      valueTry = amount * rate * usdRate
+    } else if (primaryConversionFiat === 'EUR') {
+      if (!eurRate) return { currentValue: null }
+      valueTry = amount * rate * eurRate
+    } else {
+      valueTry = amount * rate
     }
-    const bucket = assetsByAccount.get(asset.accountId) ?? []
+    let currentValue: number
+    if (displayCurrency === 'USD') currentValue = usdRate ? valueTry / usdRate : 0
+    else if (displayCurrency === 'EUR') currentValue = eurRate ? valueTry / eurRate : 0
+    else currentValue = valueTry
+    return { currentValue }
+  }
+
+  // Build asset map by account_id
+  const assetsByAccount = new Map<string, AssetWithRate[]>()
+  let latestGlobalFetchedAt: string | null = null
+
+  for (const rawAsset of assetList) {
+    const symbolRaw = rawAsset.symbols
+    const sym = mapSymbol(symbolRaw)
+    const amount = Number(rawAsset.amount)
+    const rateEntry = rateMap.get(rawAsset.symbol_id)
+    const { currentValue } = computeValue(rawAsset.symbol_id, amount, sym.primaryConversionFiat)
+
+    if (rateEntry?.fetchedAt) {
+      if (!latestGlobalFetchedAt || rateEntry.fetchedAt > latestGlobalFetchedAt) {
+        latestGlobalFetchedAt = rateEntry.fetchedAt
+      }
+    }
+
+    const asset: AssetWithRate = {
+      id: rawAsset.id,
+      householdId: rawAsset.household_id,
+      accountId: rawAsset.account_id,
+      symbolId: rawAsset.symbol_id,
+      amount,
+      createdAt: rawAsset.created_at,
+      updatedAt: rawAsset.updated_at,
+      symbol: sym,
+      currentValue,
+      lastRate: rateEntry?.rate ?? null,
+      rateFetchedAt: rateEntry?.fetchedAt ?? null,
+    }
+    const bucket = assetsByAccount.get(rawAsset.account_id) ?? []
     bucket.push(asset)
-    assetsByAccount.set(asset.accountId, bucket)
+    assetsByAccount.set(rawAsset.account_id, bucket)
   }
 
   const accounts: AccountRow[] = (accountsRaw ?? []).map((raw) => {
     const r = raw as unknown as Record<string, unknown>
     const profileRaw = r.profiles as Record<string, unknown> | null
+    const accountAssets = assetsByAccount.get(r.id as string) ?? []
+    const totalValue = accountAssets.reduce((sum, a) => sum + (a.currentValue ?? 0), 0)
+
+    // Find the most recent rate fetched_at for this account's assets
+    let accountLatestFetchedAt: string | null = null
+    for (const a of accountAssets) {
+      if (a.rateFetchedAt && (!accountLatestFetchedAt || a.rateFetchedAt > accountLatestFetchedAt)) {
+        accountLatestFetchedAt = a.rateFetchedAt
+      }
+    }
+
     return {
       id: r.id as string,
       householdId: r.household_id as string,
@@ -110,30 +226,31 @@ export default async function AccountsPage() {
       name: r.name as string,
       institution: (r.institution as string | null) ?? null,
       accountIdentifier: (r.account_identifier as string | null) ?? null,
-      defaultSymbolId: (r.default_symbol_id as string | null) ?? null,
-      createdAt: r.created_at as string,
-      updatedAt: r.updated_at as string,
-      ownerName: profileRaw?.display_name as string ?? (r.owner_id as string),
-      assets: assetsByAccount.get(r.id as string) ?? [],
+      ownerName: (profileRaw?.display_name as string | null) ?? (r.owner_id as string),
+      assets: accountAssets,
+      totalValue,
+      latestRateFetchedAt: accountLatestFetchedAt,
     }
   })
 
-  return (
-    <div className="max-w-2xl mx-auto p-4 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Accounts</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your portfolio accounts and their assets.
-        </p>
-      </div>
+  const selectedAccountId = params.account ?? null
 
-      <AccountsManager
-        householdId={householdId}
-        currentUserId={user.id}
-        role={role}
-        accounts={accounts}
-        symbols={allSymbols}
-      />
-    </div>
+  return (
+    <AppShell title="Accounts" displayName={displayName}>
+      <div
+        className="rounded-2xl overflow-hidden -mx-4 md:-mx-6 -my-4 md:-my-6"
+        style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+      >
+        <AccountsPageClient
+          householdId={householdId}
+          currentUserId={user.id}
+          role={role}
+          accounts={accounts}
+          symbols={allSymbols}
+          selectedAccountId={selectedAccountId}
+          displayCurrency={displayCurrency}
+        />
+      </div>
+    </AppShell>
   )
 }

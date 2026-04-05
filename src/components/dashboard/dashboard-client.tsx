@@ -4,6 +4,9 @@ import { NetWorthCard } from './net-worth-card'
 import { AssetBreakdownChart } from './asset-breakdown-chart'
 import { PerformanceChart } from './performance-chart'
 import { PerformanceCard } from './performance-card'
+import { AccountsPeekCard } from './accounts-peek-card'
+import { TransactionsPeekCard } from './transactions-peek-card'
+import { RatesPeekCard } from './rates-peek-card'
 import type { DashboardData } from '@/lib/actions/dashboard'
 
 interface DashboardClientProps {
@@ -13,12 +16,9 @@ interface DashboardClientProps {
 /**
  * Fixed dashboard layout — no drag-and-drop.
  *
- * Mobile (1 col):  NW → Performance → Asset Breakdown → Chart
- * md     (2 col):  Col1=NW+Perf | Col2=AssetBreakdown then Chart below
- * xl     (3 col):  Col1=NW+Perf | Col2=AssetBreakdown | Col3=Chart
- *
- * Chart lives in exactly one place in the DOM; CSS grid placement moves it
- * between "col 2 row 2" on md and "col 3 row 1" on xl.
+ * Mobile (1 col):  NW → Performance → Asset Breakdown → Chart → Accounts → Transactions → Rates
+ * md     (2 col):  Col1=NW+Perf | Col2=AssetBreakdown+Chart; peek cards below
+ * xl     (3 col):  Col1=NW+Perf | Col2=AssetBreakdown | Col3=Chart; peek cards in row 2 cols 1-3
  */
 export function DashboardClient({ data }: DashboardClientProps) {
   return (
@@ -53,6 +53,14 @@ export function DashboardClient({ data }: DashboardClientProps) {
           />
         </div>
       </div>
+
+      {/* ── Peek cards — row 2 on xl (cols 1-3), flow naturally on md/mobile ── */}
+      <AccountsPeekCard
+        accounts={data.peekAccounts}
+        displayCurrency={data.netWorth.displayCurrency}
+      />
+      <TransactionsPeekCard transactions={data.peekTransactions} />
+      <RatesPeekCard rates={data.peekRates} />
     </div>
   )
 }

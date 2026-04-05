@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase/server'
-import { TransactionList } from './transaction-list'
-import type { Transaction, TransactionType, FeeSide, EntryMode, SymbolType } from '@/lib/types/domain'
+import { AppShell } from '@/components/shared/app-shell'
+import { TransactionsPageClient } from '@/components/transactions/transactions-page-client'
+import type { TransactionType, FeeSide, EntryMode, DisplayCurrency } from '@/lib/types/domain'
+
+export const dynamic = 'force-dynamic'
 
 export interface AssetRef {
   assetId: string
@@ -13,7 +15,23 @@ export interface AssetRef {
   accountName: string
 }
 
-export interface TransactionRow extends Omit<Transaction, 'toAsset' | 'fromAsset'> {
+export interface TransactionRow {
+  id: string
+  householdId: string
+  type: TransactionType
+  date: string
+  toAssetId: string | null
+  fromAssetId: string | null
+  feeSide: FeeSide | null
+  toAmount: number | null
+  fromAmount: number | null
+  feeAmount: number | null
+  exchangeRate: number | null
+  entryMode: EntryMode | null
+  notes: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
   toAsset?: AssetRef
   fromAsset?: AssetRef
 }
@@ -43,7 +61,7 @@ export default async function TransactionsPage() {
 
   const { data: membership } = await supabase
     .from('household_members')
-    .select('household_id, role')
+    .select('household_id, role, households(display_currency)')
     .eq('user_id', user.id)
     .order('joined_at', { ascending: true })
     .limit(1)
@@ -53,6 +71,16 @@ export default async function TransactionsPage() {
 
   const householdId = membership.household_id
   const role = membership.role as 'manager' | 'editor' | 'viewer'
+  const household = membership.households as unknown as { display_currency: string } | null
+  const displayCurrency = (household?.display_currency ?? 'TRY') as DisplayCurrency
+
+  // Display name for AppShell
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', user.id)
+    .maybeSingle()
+  const displayName = profile?.display_name ?? user.email?.split('@')[0] ?? 'User'
 
   const { data: txRaw } = await supabase
     .from('transactions')
@@ -73,7 +101,7 @@ export default async function TransactionsPage() {
     .order('date', { ascending: false })
     .limit(500)
 
-  // Assets for the edit form fee amount display
+  // Assets for the edit form
   const { data: assetsRaw } = await supabase
     .from('assets')
     .select('id, symbol_id, account_id, symbols(id, code, name, type), accounts(id, name)')
@@ -117,30 +145,52 @@ export default async function TransactionsPage() {
     }
   })
 
-  return (
-    <div className="max-w-2xl mx-auto p-4 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Transactions</h1>
-          <p className="text-sm text-muted-foreground">
-            All recorded deposits, debits, transfers, and trades.
-          </p>
-        </div>
-        {role !== 'viewer' && (
-          <Link
-            href="/transactions/new"
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium h-9 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            Add transaction
-          </Link>
-        )}
-      </div>
+  // Fetch current rates for trade G/L computation
+  const allSymbolIds = [...new Set(assetOptions.map((a) => a.symbolId))]
+  const rateMap: Record<string, number> = {}
+  let usdRate: number | null = null
+  let eurRate: number | null = null
 
-      <TransactionList
+  if (allSymbolIds.length > 0) {
+    const { data: fxSymbols } = await supabase
+      .from('symbols')
+      .select('id, code')
+      .in('code', ['USD', 'EUR'])
+      .is('household_id', null)
+
+    const usdSymbolId = (fxSymbols ?? []).find((s) => s.code === 'USD')?.id ?? null
+    const eurSymbolId = (fxSymbols ?? []).find((s) => s.code === 'EUR')?.id ?? null
+
+    const queryIds = [...new Set([...allSymbolIds, usdSymbolId, eurSymbolId].filter(Boolean) as string[])]
+
+    const { data: rates } = await supabase
+      .from('exchange_rates')
+      .select('symbol_id, rate, fetched_at')
+      .in('symbol_id', queryIds)
+      .order('fetched_at', { ascending: false })
+
+    const seen = new Set<string>()
+    for (const r of (rates ?? []) as { symbol_id: string; rate: number }[]) {
+      if (!seen.has(r.symbol_id)) {
+        rateMap[r.symbol_id] = Number(r.rate)
+        if (r.symbol_id === usdSymbolId) usdRate = Number(r.rate)
+        if (r.symbol_id === eurSymbolId) eurRate = Number(r.rate)
+        seen.add(r.symbol_id)
+      }
+    }
+  }
+
+  return (
+    <AppShell title="Transactions" displayName={displayName}>
+      <TransactionsPageClient
         transactions={transactions}
         assetOptions={assetOptions}
         role={role}
+        displayCurrency={displayCurrency}
+        rateMap={rateMap}
+        usdRate={usdRate}
+        eurRate={eurRate}
       />
-    </div>
+    </AppShell>
   )
 }

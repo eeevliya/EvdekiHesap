@@ -1,6 +1,6 @@
 'use server'
 
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server'
 import type { DisplayCurrency, SymbolType } from '@/lib/types/domain'
 import { pctChange, cagr, daysBetween } from '@/lib/utils/calculations'
 
@@ -56,6 +56,43 @@ export interface AssetPerformanceRow {
   firstTransactionDate: string | null
 }
 
+export interface PeekAccountRow {
+  id: string
+  name: string
+  institution: string | null
+  ownerName: string
+  totalValue: number
+}
+
+export interface PeekTransactionRow {
+  id: string
+  type: string
+  date: string
+  fromSymbolCode: string | null
+  fromSymbolName: string | null
+  fromAmount: number | null
+  fromAccountName: string | null
+  toSymbolCode: string | null
+  toSymbolName: string | null
+  toAmount: number | null
+  toAccountName: string | null
+  feeAmount: number | null
+  feeSymbolCode: string | null
+  feeSide: string | null
+  exchangeRate: number | null
+  notes: string | null
+}
+
+export interface PeekRateRow {
+  symbolId: string
+  symbolCode: string
+  symbolName: string | null
+  symbolType: SymbolType
+  currentRate: number
+  change24hPct: number | null
+  change24hAbs: number | null
+}
+
 export interface DashboardData {
   householdId: string
   netWorth: NetWorthSummary
@@ -65,6 +102,9 @@ export interface DashboardData {
   /** All unique symbol codes present in chart data — for legend/coloring */
   chartSymbols: string[]
   performance: AssetPerformanceRow[]
+  peekAccounts: PeekAccountRow[]
+  peekTransactions: PeekTransactionRow[]
+  peekRates: PeekRateRow[]
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -436,6 +476,176 @@ export async function getDashboardData(): Promise<DashboardData | null> {
     }
   }
 
+  // ── Peek: accounts with live total values ────────────────────────────────
+  const accountValueMap = new Map<string, number>()
+  for (const asset of assetRows) {
+    const sym = asset.symbol
+    if (!sym) continue
+    const rate = rateMap.get(asset.symbol_id)
+    if (rate == null) continue
+    const amount = Number(asset.amount)
+    const pcf = sym.primary_conversion_fiat
+    let valueTry: number
+    if (pcf === 'USD') {
+      if (!usdRate) continue
+      valueTry = amount * rate * usdRate
+    } else if (pcf === 'EUR') {
+      if (!eurRate) continue
+      valueTry = amount * rate * eurRate
+    } else {
+      valueTry = amount * rate
+    }
+    let currentValue: number
+    if (displayCurrency === 'USD') currentValue = usdRate ? valueTry / usdRate : 0
+    else if (displayCurrency === 'EUR') currentValue = eurRate ? valueTry / eurRate : 0
+    else currentValue = valueTry
+    const existing = accountValueMap.get(asset.account_id) ?? 0
+    accountValueMap.set(asset.account_id, existing + currentValue)
+  }
+
+  const { data: accountsRaw } = await createServiceRoleClient()
+    .from('accounts')
+    .select('id, name, institution, owner_id, profiles(display_name)')
+    .eq('household_id', householdId)
+    .order('created_at', { ascending: true })
+
+  const peekAccounts: PeekAccountRow[] = (accountsRaw ?? []).map((raw) => {
+    const r = raw as unknown as Record<string, unknown>
+    const prof = r.profiles as Record<string, unknown> | null
+    return {
+      id: r.id as string,
+      name: r.name as string,
+      institution: (r.institution as string | null) ?? null,
+      ownerName: (prof?.display_name as string | null) ?? (r.owner_id as string),
+      totalValue: accountValueMap.get(r.id as string) ?? 0,
+    }
+  })
+
+  // ── Peek: last 5 transactions ─────────────────────────────────────────────
+  type TxRaw = {
+    id: string
+    type: string
+    date: string
+    to_amount: number | null
+    from_amount: number | null
+    fee_amount: number | null
+    fee_side: string | null
+    exchange_rate: number | null
+    notes: string | null
+    to_asset: {
+      id: string; symbol_id: string; account_id: string
+      symbols: { id: string; code: string; name: string | null } | null
+      accounts: { id: string; name: string } | null
+    } | null
+    from_asset: {
+      id: string; symbol_id: string; account_id: string
+      symbols: { id: string; code: string; name: string | null } | null
+      accounts: { id: string; name: string } | null
+    } | null
+  }
+
+  const { data: txWithAmounts } = await supabase
+    .from('transactions')
+    .select(`
+      id, type, date, to_amount, from_amount, fee_amount, fee_side, exchange_rate, notes,
+      to_asset:assets!transactions_to_asset_id_fkey(
+        id, symbol_id, account_id,
+        symbols(id, code, name),
+        accounts(id, name)
+      ),
+      from_asset:assets!transactions_from_asset_id_fkey(
+        id, symbol_id, account_id,
+        symbols(id, code, name),
+        accounts(id, name)
+      )
+    `)
+    .eq('household_id', householdId)
+    .order('date', { ascending: false })
+    .limit(5)
+
+  const peekTransactions: PeekTransactionRow[] = ((txWithAmounts ?? []) as unknown as TxRaw[]).map((r) => {
+    const toSym = r.to_asset?.symbols ?? null
+    const fromSym = r.from_asset?.symbols ?? null
+    const feeSymCode = r.fee_side === 'to' ? (toSym?.code ?? null) : (fromSym?.code ?? null)
+    return {
+      id: r.id,
+      type: r.type,
+      date: r.date,
+      fromSymbolCode: fromSym?.code ?? null,
+      fromSymbolName: fromSym?.name ?? null,
+      fromAmount: r.from_amount != null ? Number(r.from_amount) : null,
+      fromAccountName: r.from_asset?.accounts?.name ?? null,
+      toSymbolCode: toSym?.code ?? null,
+      toSymbolName: toSym?.name ?? null,
+      toAmount: r.to_amount != null ? Number(r.to_amount) : null,
+      toAccountName: r.to_asset?.accounts?.name ?? null,
+      feeAmount: r.fee_amount != null ? Number(r.fee_amount) : null,
+      feeSymbolCode: feeSymCode,
+      feeSide: r.fee_side,
+      exchangeRate: r.exchange_rate != null ? Number(r.exchange_rate) : null,
+      notes: r.notes,
+    }
+  })
+
+  // ── Peek: top 5 rates by absolute 24h change ──────────────────────────────
+  const { data: allActiveSymbols } = await supabase
+    .from('symbols')
+    .select('id, code, name, type')
+    .eq('is_active', true)
+    .order('code')
+
+  const twentyFiveHoursAgo = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString()
+  const activeSymbolIds = (allActiveSymbols ?? []).map((s) => s.id)
+
+  type RateHistRow = { symbol_id: string; rate: number; fetched_at: string }
+  const peekRates: PeekRateRow[] = []
+
+  if (activeSymbolIds.length > 0) {
+    const { data: recentRates } = await supabase
+      .from('exchange_rates')
+      .select('symbol_id, rate, fetched_at')
+      .in('symbol_id', activeSymbolIds)
+      .gte('fetched_at', twentyFiveHoursAgo)
+      .order('fetched_at', { ascending: false })
+
+    // Per symbol: first row = latest, last row closest to 24h ago
+    const latestBySymbol = new Map<string, RateHistRow>()
+    const oldestBySymbol = new Map<string, RateHistRow>()
+    for (const r of ((recentRates ?? []) as RateHistRow[])) {
+      if (!latestBySymbol.has(r.symbol_id)) latestBySymbol.set(r.symbol_id, r)
+      oldestBySymbol.set(r.symbol_id, r) // keep overwriting — last wins = oldest in window
+    }
+
+    const symMap = new Map((allActiveSymbols ?? []).map((s) => [s.id, s]))
+    const rateRows: PeekRateRow[] = []
+    for (const [symId, latest] of latestBySymbol) {
+      const sym = symMap.get(symId)
+      if (!sym) continue
+      const oldest = oldestBySymbol.get(symId)
+      const currentRate = Number(latest.rate)
+      let change24hPct: number | null = null
+      let change24hAbs: number | null = null
+      if (oldest && oldest.fetched_at !== latest.fetched_at) {
+        const oldRate = Number(oldest.rate)
+        if (oldRate !== 0) {
+          change24hPct = ((currentRate - oldRate) / oldRate) * 100
+          change24hAbs = Math.abs(change24hPct)
+        }
+      }
+      rateRows.push({
+        symbolId: symId,
+        symbolCode: sym.code,
+        symbolName: sym.name ?? null,
+        symbolType: sym.type as SymbolType,
+        currentRate,
+        change24hPct,
+        change24hAbs,
+      })
+    }
+    rateRows.sort((a, b) => (b.change24hAbs ?? 0) - (a.change24hAbs ?? 0))
+    peekRates.push(...rateRows.slice(0, 5))
+  }
+
   return {
     householdId,
     netWorth,
@@ -443,6 +653,9 @@ export async function getDashboardData(): Promise<DashboardData | null> {
     chartData,
     chartSymbols: [...chartSymbolSet],
     performance,
+    peekAccounts,
+    peekTransactions,
+    peekRates,
   }
 }
 

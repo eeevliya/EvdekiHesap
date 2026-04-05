@@ -43,12 +43,13 @@ export function DashboardClient({ data }: DashboardClientProps) {
             On md: single grid item; AB and Chart stack inside.
             On xl: xl:contents dissolves wrapper → AB → col 2, Chart → col 3. */}
         <div className="flex flex-col gap-5 xl:contents">
+          {/* Mobile: AB first, PC second. Desktop: PC → col 2, AB → col 3. */}
           <AssetBreakdownChart
             data={data.assetBreakdown}
             displayCurrency={data.netWorth.displayCurrency}
-            className="xl:h-full"
+            className="xl:col-start-3 xl:row-start-1 xl:h-full"
           />
-          <div className="xl:col-start-3 xl:row-start-1 xl:h-full">
+          <div className="xl:col-start-2 xl:row-start-1 xl:h-full">
             <PerformanceChart
               data={data.chartData}
               chartSymbols={data.chartSymbols}

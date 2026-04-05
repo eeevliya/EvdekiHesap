@@ -122,7 +122,7 @@ c:\Code\EvdekiHesap\
 ├── supabase/
 │   ├── migrations/                 ← versioned SQL migration files (00001_, 00002_, …)
 │   └── seed.sql                    ← global symbols seed data
-├── capacitor.config.ts             ← added in Slice 8
+├── capacitor.config.ts             ← added in Slice 9
 ├── next.config.ts
 ├── tailwind.config.ts
 ├── tsconfig.json                   ← strict mode
@@ -1113,7 +1113,20 @@ function cagr(currentValue: number, costBasis: number, daysHeld: number): number
 
 ---
 
-### Slice 7 — Household Management UI Polish
+### Slice 7 — Inner Pages UI
+
+**Deliverables:**
+- Accounts page (`/accounts`) per `UI_PAGES.md` specifications
+- Transactions page (`/transactions`) per `UI_PAGES.md` specifications
+- Rates page (`/rates`) per `UI_PAGES.md` specifications
+- Dashboard card order updated and three peek cards added per `UI_PAGES.md §2`
+- All private pages render inside `AppShell` with sidebar on desktop and bottom nav on mobile
+
+**Testable outcome**: PM can navigate between all pages on desktop and mobile; all layouts match `UI_PAGES.md` specifications.
+
+---
+
+### Slice 8 — Household Management UI Polish
 
 **Deliverables:**
 - Admin panel pages reach feature-complete state per PRD:
@@ -1127,7 +1140,7 @@ function cagr(currentValue: number, costBasis: number, daysHeld: number): number
 
 ---
 
-### Slice 8 — Android APK (Capacitor)
+### Slice 9 — Android APK (Capacitor)
 
 **Architecture decision**: The APK is a WebView wrapper pointing to the deployed Vercel URL. `output: 'export'` is not used in `next.config.ts`. Server Actions remain unaffected.
 

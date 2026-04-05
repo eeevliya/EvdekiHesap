@@ -85,6 +85,7 @@ The visual design, layout, navigation, and page composition for all slices from 
 - Read `UI_PLAN.md` alongside `TECHNICAL_PLAN.md` at the start of any UI-touching slice.
 - `.claude/ui-reference/` contains a read-only v0.app visual reference.
 - Route consolidations in effect: `/settings/household` and `/settings/members` redirect to `/household`; the Rates page lives at `/rates`.
+- `UI_PAGES.md` (`.claude/UI_PAGES.md`) is a temporary supplement to `UI_PLAN.md` covering page layouts for Accounts, Transactions, Rates, and Dashboard. Where the two documents conflict on layout, `UI_PAGES.md` takes precedence. `UI_PAGES.md` will be merged into `UI_PLAN.md` and deleted after Slice 7 is complete.
 
 ---
 
@@ -119,7 +120,7 @@ All three variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 | Field | Value |
 |---|---|
 | Last completed slice | Slice 6 + dashboard polish — Performance card (total G/L, best/worst, asset table always expanded on desktop / toggle on mobile); Net Worth card drops all-time row, adds arrow indicators to badges; fixed responsive column layout (xl=3col, md=2col, mobile=1col); DnD removed |
-| Next slice | Slice 7 — Household Management UI Polish |
+| Next slice | Slice 7 — Inner Pages UI |
 | Known issues | `tefas-crawler` package does not exist on npm — tefas.ts uses direct HTTP to tefas.gov.tr instead. `COLLECTAPI_ENABLED=false` in .env.local — gold fetches skipped locally until Google Sheets is decommissioned. G/L is null for assets with no snapshot yet (new households before first snapshot). Migration `20260404000001_snapshot_assets_gain_loss.sql` must be applied to Supabase Cloud before G/L populates on new snapshots. |
 | Packages added | `recharts`, `@dnd-kit/core`, `@dnd-kit/sortable`, `geist` |
 | Cron scheduling | Vercel Hobby plan only allows once-daily crons. Both cron routes (`/api/cron/price-fetch`, `/api/cron/snapshot`) are triggered externally via cron-job.org. `vercel.json` has no cron definitions. `CRON_SECRET` header check remains in place. |

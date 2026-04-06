@@ -4,13 +4,15 @@ import { useState, useMemo } from 'react'
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceDot,
+  Label,
 } from 'recharts'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardHeader, CardTitle } from '@/components/shared/card'
@@ -161,11 +163,19 @@ export function PerformanceChart({ data, chartSymbols, displayCurrency, classNam
           </div>
         </TabsContent>
 
-        {/* Net Worth tab — stacked bar chart */}
+        {/* Net Worth tab — stacked area chart */}
         <TabsContent value="networth" className="mt-0">
           <div className="h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={filtered} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+              <AreaChart data={filtered} margin={{ top: 24, right: 5, left: 0, bottom: 0 }}>
+                <defs>
+                  {chartSymbols.map((code) => (
+                    <linearGradient key={code} id={`nw-grad-${code}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={colorMap[code]} stopOpacity={0.45} />
+                      <stop offset="95%" stopColor={colorMap[code]} stopOpacity={0.05} />
+                    </linearGradient>
+                  ))}
+                </defs>
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="var(--color-border)"
@@ -194,17 +204,39 @@ export function PerformanceChart({ data, chartSymbols, displayCurrency, classNam
                     String(name),
                   ]}
                 />
-                {chartSymbols.map((code, i) => (
-                  <Bar
+                {chartSymbols.map((code) => (
+                  <Area
                     key={code}
+                    type="monotone"
                     dataKey={`bySymbol.${code}`}
                     name={code}
                     stackId="a"
-                    fill={colorMap[code]}
-                    radius={i === chartSymbols.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                    stroke={colorMap[code]}
+                    fill={`url(#nw-grad-${code})`}
+                    strokeWidth={1.5}
+                    dot={false}
                   />
                 ))}
-              </BarChart>
+                {filtered.length > 0 && (() => {
+                  const last = filtered[filtered.length - 1]
+                  return (
+                    <ReferenceDot
+                      x={last.date}
+                      y={last.netWorth}
+                      r={3}
+                      fill="var(--color-accent)"
+                      stroke="none"
+                    >
+                      <Label
+                        value={formatCurrency(last.netWorth, displayCurrency)}
+                        position="top"
+                        offset={6}
+                        style={{ fontSize: 11, fill: 'var(--color-fg-primary)', fontWeight: 600 }}
+                      />
+                    </ReferenceDot>
+                  )
+                })()}
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </TabsContent>

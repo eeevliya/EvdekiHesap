@@ -134,11 +134,8 @@ export function AssetBreakdownChart({
               style={{ background: colorMap[seg.symbolCode] }}
             />
             <div className="min-w-0 flex-1">
-              <p className="text-xs truncate" style={{ color: 'var(--color-fg-secondary)' }}>
-                {seg.symbolCode}
-              </p>
-              <p className="text-xs font-mono font-semibold" style={{ color: 'var(--color-fg-primary)' }}>
-                {formatPct(seg.pct, { showSign: false })}
+              <p className="text-xs font-mono truncate" style={{ color: 'var(--color-fg-primary)' }}>
+                {seg.symbolCode} — {formatCurrency(seg.value, displayCurrency)} ({formatPct(seg.pct, { showSign: false })})
               </p>
             </div>
           </button>

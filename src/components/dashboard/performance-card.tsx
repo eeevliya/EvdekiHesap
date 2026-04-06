@@ -12,9 +12,10 @@ import type { DisplayCurrency } from '@/lib/types/domain'
 interface PerformanceCardProps {
   data: AssetPerformanceRow[]
   displayCurrency: DisplayCurrency
+  className?: string
 }
 
-export function PerformanceCard({ data, displayCurrency }: PerformanceCardProps) {
+export function PerformanceCard({ data, displayCurrency, className }: PerformanceCardProps) {
   const [expanded, setExpanded] = useState(false)
 
   // ── Total G/L ──────────────────────────────────────────────────────────────
@@ -39,7 +40,7 @@ export function PerformanceCard({ data, displayCurrency }: PerformanceCardProps)
   const tableData = data.filter((r) => r.gainLossAmount != null)
 
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader>
         <CardTitle>Performance</CardTitle>
       </CardHeader>

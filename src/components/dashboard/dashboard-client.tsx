@@ -17,45 +17,50 @@ interface DashboardClientProps {
  * Fixed dashboard layout — no drag-and-drop.
  *
  * Mobile (1 col):  NW → Performance → Asset Breakdown → Chart → Accounts → Transactions → Rates
- * md     (2 col):  Col1=NW+Perf | Col2=AssetBreakdown+Chart; peek cards below
- * xl     (3 col):  Col1=NW+Perf | Col2=AssetBreakdown | Col3=Chart; peek cards in row 2 cols 1-3
+ * md     (2 col):  Col1=NW+AssetBreakdown | Col2=Performance+Chart; peek cards below
+ * xl     (3 col):  Col1=NW+AssetBreakdown | Col2=Performance (full height) | Col3=Chart (full height)
+ *
+ * DOM order matches mobile order. Explicit col/row placement handles the desktop swap
+ * where Performance moves to col 2 and Asset Breakdown drops to col 1 row 2.
  */
 export function DashboardClient({ data }: DashboardClientProps) {
   return (
     <div className="space-y-5">
-      {/* ── Top section: NW/Perf + AssetBreakdown + Chart ── */}
-      {/* items-start removed so cells stretch to the tallest column (col 1: NW+Perf).
-          h-full forwarded to cards in AB and PC so they fill the stretched cells. */}
+      {/* ── Top section: 4 flat items — explicit placement on md/xl ── */}
       <div className="grid gap-5 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-        {/* Column 1 */}
-        <div className="flex flex-col gap-5">
+        {/* 1. Net Worth — col 1 row 1 on desktop */}
+        <div className="md:col-start-1 md:row-start-1">
           <NetWorthCard
             data={data.netWorth}
             householdId={data.householdId}
           />
+        </div>
+
+        {/* 2. Performance — col 2 row 1 on md; col 2 rows 1–2 on xl */}
+        <div className="md:col-start-2 md:row-start-1 xl:row-span-2">
           <PerformanceCard
             data={data.performance}
+            displayCurrency={data.netWorth.displayCurrency}
+            className="h-full"
+          />
+        </div>
+
+        {/* 3. Asset Breakdown — col 1 row 2 on desktop */}
+        <div className="md:col-start-1 md:row-start-2">
+          <AssetBreakdownChart
+            data={data.assetBreakdown}
             displayCurrency={data.netWorth.displayCurrency}
           />
         </div>
 
-        {/* Columns 2 (and 3 on xl) —
-            On md: single grid item; AB and Chart stack inside.
-            On xl: xl:contents dissolves wrapper → AB → col 2, Chart → col 3. */}
-        <div className="flex flex-col gap-5 xl:contents">
-          <AssetBreakdownChart
-            data={data.assetBreakdown}
+        {/* 4. Performance Chart — col 2 row 2 on md; col 3 rows 1–2 on xl */}
+        <div className="md:col-start-2 md:row-start-2 xl:col-start-3 xl:row-start-1 xl:row-span-2 xl:h-full">
+          <PerformanceChart
+            data={data.chartData}
+            chartSymbols={data.chartSymbols}
             displayCurrency={data.netWorth.displayCurrency}
-            className="xl:h-full"
+            className="h-full"
           />
-          <div className="xl:col-start-3 xl:row-start-1 xl:h-full">
-            <PerformanceChart
-              data={data.chartData}
-              chartSymbols={data.chartSymbols}
-              displayCurrency={data.netWorth.displayCurrency}
-              className="h-full"
-            />
-          </div>
         </div>
       </div>
 

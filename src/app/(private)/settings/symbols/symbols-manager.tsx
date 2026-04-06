@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { createSymbol, updateSymbol, deleteSymbol } from '@/lib/actions/symbols'
+import { createAssetSymbol, updateAssetSymbol, deleteAssetSymbol } from '@/lib/actions/symbols'
 import type { AssetSymbol, SymbolType } from '@/lib/types/domain'
 
 const SYMBOL_TYPE_LABELS: Record<SymbolType, string> = {
@@ -87,7 +87,7 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
     }
     setError(null)
     startTransition(async () => {
-      const result = await createSymbol(householdId, {
+      const result = await createAssetSymbol(householdId, {
         code: form.code,
         name: form.name || undefined,
         description: form.description || undefined,
@@ -106,7 +106,7 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
     if (!editingSymbol) return
     setError(null)
     startTransition(async () => {
-      const result = await updateSymbol(editingSymbol.id, {
+      const result = await updateAssetSymbol(editingSymbol.id, {
         name: form.name || null,
         description: form.description || null,
       })
@@ -120,14 +120,14 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
 
   function handleToggleActive(symbol: AssetSymbol) {
     startTransition(async () => {
-      await updateSymbol(symbol.id, { isActive: !symbol.isActive })
+      await updateAssetSymbol(symbol.id, { isActive: !symbol.isActive })
     })
   }
 
   function handleDelete(symbol: AssetSymbol) {
     if (!confirm(`Delete symbol "${symbol.code}"? This cannot be undone.`)) return
     startTransition(async () => {
-      const result = await deleteSymbol(symbol.id)
+      const result = await deleteAssetSymbol(symbol.id)
       if (!result.success) alert(result.error)
     })
   }

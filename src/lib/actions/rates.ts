@@ -24,8 +24,11 @@ export interface RatesPageData {
 }
 
 export interface HistoricalRatePoint {
-  date: string  // ISO string
-  rate: number
+  date: string  // YYYY-MM-DD
+  open: number
+  high: number
+  low: number
+  close: number
 }
 
 export interface SymbolAssetRow {
@@ -49,23 +52,13 @@ export interface SymbolDetailData {
   change7d: number | null
   change1m: number | null
   change1y: number | null
-  history: HistoricalRatePoint[]  // downsampled to 90 pts, 1Y max
+  history: HistoricalRatePoint[]  // daily OHLC, 1Y max
   assets: SymbolAssetRow[]
   displayCurrency: DisplayCurrency
+  quoteCurrency: string  // currency the rate is denominated in
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function downsample<T>(arr: T[], max: number): T[] {
-  if (arr.length <= max) return arr
-  const result: T[] = [arr[0]]
-  const step = (arr.length - 1) / (max - 1)
-  for (let i = 1; i < max - 1; i++) {
-    result.push(arr[Math.round(i * step)])
-  }
-  result.push(arr[arr.length - 1])
-  return result
-}
 
 function pctChange(from: number | null, to: number | null): number | null {
   if (from == null || to == null || from === 0) return null
@@ -215,12 +208,23 @@ export async function getSymbolDetail(symbolId: string): Promise<SymbolDetailDat
   type HistRow = { rate: number; fetched_at: string }
   const histRows = (historyRaw ?? []) as HistRow[]
 
-  // Downsample to 90 points
-  const sampled = downsample(histRows, 90)
-  const history: HistoricalRatePoint[] = sampled.map((r) => ({
-    date: r.fetched_at,
-    rate: Number(r.rate),
-  }))
+  // Aggregate raw rows into daily OHLC candles
+  const dayMap = new Map<string, { open: number; high: number; low: number; close: number }>()
+  for (const r of histRows) {
+    const date = r.fetched_at.slice(0, 10) // YYYY-MM-DD
+    const rate = Number(r.rate)
+    const existing = dayMap.get(date)
+    if (!existing) {
+      dayMap.set(date, { open: rate, high: rate, low: rate, close: rate })
+    } else {
+      existing.high = Math.max(existing.high, rate)
+      existing.low = Math.min(existing.low, rate)
+      existing.close = rate // rows are ascending by fetched_at, so last = close
+    }
+  }
+  const history: HistoricalRatePoint[] = Array.from(dayMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, d]) => ({ date, open: d.open, high: d.high, low: d.low, close: d.close }))
 
   // Latest rate
   const latestRow = histRows.at(-1)
@@ -375,5 +379,6 @@ export async function getSymbolDetail(symbolId: string): Promise<SymbolDetailDat
     history,
     assets,
     displayCurrency,
+    quoteCurrency: pcf === 'USD' ? 'USD' : pcf === 'EUR' ? 'EUR' : 'TRY',
   }
 }

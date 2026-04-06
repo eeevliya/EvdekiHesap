@@ -376,7 +376,7 @@ function SymbolDetailPanel({ detail }: { detail: SymbolDetailData }) {
 
       {/* Historical chart */}
       <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.5rem' }}>
-        <RateHistoricalChart history={detail.history} />
+        <RateHistoricalChart history={detail.history} quoteCurrency={detail.quoteCurrency} />
       </div>
 
       {/* Assets section */}

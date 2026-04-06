@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   LineChart,
   Line,
@@ -48,54 +48,31 @@ function formatMonthLabel(dateStr: string): string {
   return parseDate(dateStr).toLocaleDateString('en-US', { month: 'short' })
 }
 
-// Returns the tick dates and a formatter for the given range
-function getXAxisConfig(
-  filtered: HistoricalRatePoint[],
-  range: Range,
-): {
-  ticks: string[]
-  tickFormatter: (v: string) => string
-  majorDates: Set<string>
-} {
-  const dates = filtered.map((p) => p.date)
-
-  if (range === '1W') {
-    return {
-      ticks: dates,
-      tickFormatter: formatDayLabel,
-      majorDates: new Set(dates),
-    }
-  }
-
-  if (range === '1M') {
-    // All days as ticks; only label day 1, 11, 21 of each month
-    const majorDates = new Set(
-      dates.filter((d) => {
-        const day = parseDate(d).getDate()
-        return day === 1 || day === 11 || day === 21
-      }),
+// XAxis minor-tick renderer for 1M mode.
+// Draws a short line for every day; adds a text label only on the major days.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function make1MTickRenderer(majorDates: Set<string>): (props: any) => React.ReactElement {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return function MonthlyTick({ x, y, payload }: any): React.ReactElement {
+    const isMajor = majorDates.has(payload.value as string)
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <line
+          x1={0} y1={0} x2={0} y2={isMajor ? 5 : 3}
+          stroke="var(--color-border)" strokeWidth={1}
+        />
+        {isMajor && (
+          <text
+            x={0} y={14}
+            textAnchor="middle"
+            fill="var(--color-fg-secondary)"
+            fontSize={11}
+          >
+            {formatDayLabel(payload.value)}
+          </text>
+        )}
+      </g>
     )
-    return {
-      ticks: dates,
-      tickFormatter: (v) => (majorDates.has(v) ? formatDayLabel(v) : ''),
-      majorDates,
-    }
-  }
-
-  // 1Y: one tick per month (first date seen in each calendar month)
-  const seenMonths = new Set<string>()
-  const monthTicks: string[] = []
-  for (const d of dates) {
-    const ym = d.slice(0, 7)
-    if (!seenMonths.has(ym)) {
-      seenMonths.add(ym)
-      monthTicks.push(d)
-    }
-  }
-  return {
-    ticks: monthTicks,
-    tickFormatter: formatMonthLabel,
-    majorDates: new Set(monthTicks),
   }
 }
 
@@ -172,10 +149,49 @@ export function RateHistoricalChart({ history, quoteCurrency }: RateHistoricalCh
     [filtered],
   )
 
-  const { ticks, tickFormatter } = useMemo(
-    () => getXAxisConfig(filtered, activeRange),
-    [filtered, activeRange],
-  )
+  // Build all XAxis props per-range so each mode can control tick lines and renderers
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const xAxisProps: Record<string, any> = useMemo(() => {
+    const dates = filtered.map((p) => p.date)
+    const base = { dataKey: 'date', interval: 0, axisLine: false }
+
+    if (activeRange === '1W') {
+      return {
+        ...base,
+        ticks: dates,
+        tickLine: { stroke: 'var(--color-border)', strokeWidth: 1 },
+        tick: { fontSize: 11, fill: 'var(--color-fg-secondary)' },
+        tickFormatter: formatDayLabel,
+      }
+    }
+
+    if (activeRange === '1M') {
+      const majorDates = new Set(
+        dates.filter((d) => { const day = parseDate(d).getDate(); return day === 1 || day === 11 || day === 21 }),
+      )
+      return {
+        ...base,
+        ticks: dates,
+        tickLine: false,
+        tick: make1MTickRenderer(majorDates),
+      }
+    }
+
+    // 1Y: one tick per month
+    const seenMonths = new Set<string>()
+    const monthTicks: string[] = []
+    for (const d of dates) {
+      const ym = d.slice(0, 7)
+      if (!seenMonths.has(ym)) { seenMonths.add(ym); monthTicks.push(d) }
+    }
+    return {
+      ...base,
+      ticks: monthTicks,
+      tickLine: { stroke: 'var(--color-border)', strokeWidth: 1 },
+      tick: { fontSize: 11, fill: 'var(--color-fg-secondary)' },
+      tickFormatter: formatMonthLabel,
+    }
+  }, [filtered, activeRange])
 
   if (history.length === 0) {
     return (
@@ -187,23 +203,12 @@ export function RateHistoricalChart({ history, quoteCurrency }: RateHistoricalCh
     )
   }
 
-  const commonAxisProps = {
-    tick: { fontSize: 11, fill: 'var(--color-fg-secondary)' },
-    axisLine: false,
-    tickLine: false,
-  } as const
-
-  const xAxisProps = {
-    dataKey: 'date',
-    ticks,
-    tickFormatter,
-    interval: 0,
-    ...commonAxisProps,
-  }
-
   const yAxisProps = {
     tickFormatter: formatRate,
     width: 72,
+    tick: { fontSize: 11, fill: 'var(--color-fg-secondary)' },
+    axisLine: false,
+    tickLine: false,
     label: {
       value: quoteCurrency,
       position: 'insideTop' as const,
@@ -211,7 +216,6 @@ export function RateHistoricalChart({ history, quoteCurrency }: RateHistoricalCh
       fontSize: 10,
       fill: 'var(--color-fg-secondary)',
     },
-    ...commonAxisProps,
   }
 
   const gridProps = {

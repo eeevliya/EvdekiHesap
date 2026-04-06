@@ -107,12 +107,12 @@ export interface Account {
   name: string
   institution: string | null
   accountIdentifier: string | null
-  defaultAssetSymbolId: string | null
+  defaultSymbolId: string | null
   createdAt: string
   updatedAt: string
   // Joined fields
   ownerProfile?: Pick<Profile, 'id' | 'displayName'>
-  defaultAssetSymbol?: Pick<AssetSymbol, 'id' | 'code' | 'name'>
+  defaultSymbol?: Pick<AssetSymbol, 'id' | 'code' | 'name'>
 }
 
 export interface Asset {

@@ -34,6 +34,56 @@ function formatRate(rate: number): string {
   return rate.toFixed(8)
 }
 
+// Y-axis tick label: max 2 dp, k/m abbreviations for large values, reasonable precision for sub-1
+function formatYAxisTick(value: number): string {
+  if (value >= 1_000_000) {
+    const m = value / 1_000_000
+    return `${+m.toFixed(2)}m`
+  }
+  if (value >= 1_000) {
+    const k = value / 1_000
+    return `${+k.toFixed(2)}k`
+  }
+  if (value >= 1) return `${+value.toFixed(2)}`
+  if (value >= 0.001) return value.toFixed(4)
+  if (value > 0) return value.toPrecision(2)
+  return '0'
+}
+
+// Smart Y-axis domain:
+// 1. Use high/low extremes (candlestick) or close (line) from visible data
+// 2. Enforce a volatility floor of 1% of mid-price so flat assets don't over-zoom
+// 3. Add 5% padding to each side for breathing room
+// 4. Hard-clamp min to 0 (prices can't be negative)
+// 5. Round to a nice magnitude so grid lines land on clean values
+function computeYDomain(points: HistoricalRatePoint[], isCandlestick: boolean): [number, number] {
+  if (points.length === 0) return [0, 1]
+
+  const highs = points.map((p) => (isCandlestick ? p.high : p.close))
+  const lows  = points.map((p) => (isCandlestick ? p.low  : p.close))
+  const dataMax = Math.max(...highs)
+  const dataMin = Math.min(...lows)
+  const mid = (dataMax + dataMin) / 2
+
+  // Volatility floor: span at least 1% of mid so a flat line isn't microscopic
+  const minRange = mid * 0.01
+  let lo = Math.min(dataMin, mid - minRange / 2)
+  let hi = Math.max(dataMax, mid + minRange / 2)
+
+  // 5% padding on each side
+  const range = hi - lo
+  lo -= range * 0.05
+  hi += range * 0.05
+
+  // Hard floor
+  lo = Math.max(0, lo)
+
+  // Nice rounding: one order of magnitude below the padded range
+  const paddedRange = hi - lo
+  const mag = Math.pow(10, Math.floor(Math.log10(paddedRange)) - 1)
+  return [Math.floor(lo / mag) * mag, Math.ceil(hi / mag) * mag]
+}
+
 // Parse YYYY-MM-DD safely (avoid UTC-vs-local offset issues)
 function parseDate(dateStr: string): Date {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -149,6 +199,11 @@ export function RateHistoricalChart({ history, quoteCurrency }: RateHistoricalCh
     [filtered],
   )
 
+  const yDomain = useMemo(
+    () => computeYDomain(filtered, isCandlestick),
+    [filtered, isCandlestick],
+  )
+
   // Build all XAxis props per-range so each mode can control tick lines and renderers
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const xAxisProps: Record<string, any> = useMemo(() => {
@@ -204,18 +259,12 @@ export function RateHistoricalChart({ history, quoteCurrency }: RateHistoricalCh
   }
 
   const yAxisProps = {
-    tickFormatter: formatRate,
+    tickFormatter: formatYAxisTick,
+    domain: yDomain,
     width: 72,
     tick: { fontSize: 11, fill: 'var(--color-fg-secondary)' },
     axisLine: false,
     tickLine: false,
-    label: {
-      value: quoteCurrency,
-      position: 'insideTop' as const,
-      offset: -4,
-      fontSize: 10,
-      fill: 'var(--color-fg-secondary)',
-    },
   }
 
   const gridProps = {
@@ -245,12 +294,19 @@ export function RateHistoricalChart({ history, quoteCurrency }: RateHistoricalCh
       </div>
 
       {/* Chart */}
+      <div className="relative">
+        <span
+          className="absolute top-0 left-0 text-[10px] leading-none pointer-events-none"
+          style={{ color: 'var(--color-fg-secondary)' }}
+        >
+          {quoteCurrency}
+        </span>
       <ResponsiveContainer width="100%" height={220}>
         {isCandlestick ? (
           <BarChart data={filtered} margin={{ top: 16, right: 4, bottom: 0, left: 0 }}>
             <CartesianGrid {...gridProps} />
             <XAxis {...xAxisProps} />
-            <YAxis {...yAxisProps} domain={['dataMin', 'dataMax']} />
+            <YAxis {...yAxisProps} />
             <Tooltip
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null
@@ -307,6 +363,7 @@ export function RateHistoricalChart({ history, quoteCurrency }: RateHistoricalCh
           </LineChart>
         )}
       </ResponsiveContainer>
+      </div>
     </div>
   )
 }

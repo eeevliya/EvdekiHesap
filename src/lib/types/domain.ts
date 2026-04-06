@@ -3,7 +3,7 @@
 
 export type Role = 'manager' | 'editor' | 'viewer'
 
-export type AssetSymbolType =
+export type SymbolType =
   | 'fiat_currency'
   | 'stock'
   | 'tefas_fund'
@@ -74,7 +74,7 @@ export interface AssetSymbol {
   code: string
   name: string | null
   description: string | null
-  type: AssetSymbolType
+  type: SymbolType
   primaryConversionFiat: string | null
   isActive: boolean
   fetchConfig: Record<string, unknown> | null
@@ -195,7 +195,7 @@ export interface PortfolioSummary {
   change7d: number | null
   change30d: number | null
   changeAllTime: number | null
-  byType: Record<AssetSymbolType, number>
+  byType: Record<SymbolType, number>
   byCurrencyExposure: { try: number; usd: number; eur: number; other: number }
 }
 

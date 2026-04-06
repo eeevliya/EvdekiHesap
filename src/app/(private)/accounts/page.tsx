@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { AppShell } from '@/components/shared/app-shell'
 import { AccountsPageClient } from '@/components/accounts/accounts-page-client'
-import type { AssetSymbol, AssetSymbolType, DisplayCurrency } from '@/lib/types/domain'
+import type { AssetSymbol, SymbolType, DisplayCurrency } from '@/lib/types/domain'
 import type { AssetWithRate, AccountRow } from '@/components/accounts/account-dialogs'
 
 export const dynamic = 'force-dynamic'
@@ -66,7 +66,7 @@ export default async function AccountsPage({
       code: row.code as string,
       name: (row.name as string | null) ?? null,
       description: (row.description as string | null) ?? null,
-      type: row.type as AssetSymbolType,
+      type: row.type as SymbolType,
       primaryConversionFiat: (row.primary_conversion_fiat as string | null) ?? null,
       isActive: row.is_active as boolean,
       fetchConfig: (row.fetch_config as Record<string, unknown> | null) ?? null,

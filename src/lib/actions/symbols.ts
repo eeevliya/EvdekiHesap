@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerClient } from '@/lib/supabase/server'
-import type { ActionResult, AssetSymbol, AssetSymbolType } from '@/lib/types/domain'
+import type { ActionResult, AssetSymbol, SymbolType } from '@/lib/types/domain'
 
 async function getSessionUser() {
   const supabase = await createServerClient()
@@ -18,7 +18,7 @@ export async function createAssetSymbol(
     code: string
     name?: string
     description?: string
-    type: AssetSymbolType
+    type: SymbolType
     primaryConversionFiat?: string
     fetchConfig?: Record<string, unknown>
   }
@@ -63,7 +63,7 @@ export async function createAssetSymbol(
       code: data.code,
       name: data.name,
       description: data.description,
-      type: data.type as AssetSymbolType,
+      type: data.type as SymbolType,
       primaryConversionFiat: data.primary_conversion_fiat,
       isActive: data.is_active,
       fetchConfig: data.fetch_config as Record<string, unknown> | null,
@@ -125,7 +125,7 @@ export async function updateAssetSymbol(
       code: data.code,
       name: data.name,
       description: data.description,
-      type: data.type as AssetSymbolType,
+      type: data.type as SymbolType,
       primaryConversionFiat: data.primary_conversion_fiat,
       isActive: data.is_active,
       fetchConfig: data.fetch_config as Record<string, unknown> | null,

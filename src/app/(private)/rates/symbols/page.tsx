@@ -1,12 +1,12 @@
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase/server'
 import { AppShell } from '@/components/shared/app-shell'
-import { SymbolsManager } from '@/app/(private)/settings/symbols/symbols-manager'
-import type { Symbol, SymbolType } from '@/lib/types/domain'
+import { AssetSymbolsManager } from '@/app/(private)/settings/symbols/symbols-manager'
+import type { AssetSymbol, AssetSymbolType } from '@/lib/types/domain'
 
 export const dynamic = 'force-dynamic'
 
-export default async function RatesSymbolsPage() {
+export default async function RatesAssetSymbolsPage() {
   const supabase = await createServerClient()
 
   const {
@@ -50,14 +50,14 @@ export default async function RatesSymbolsPage() {
     .eq('household_id', householdId)
     .order('code')
 
-  function mapSymbol(row: Record<string, unknown>): Symbol {
+  function mapAssetSymbol(row: Record<string, unknown>): AssetSymbol {
     return {
       id: row.id as string,
       householdId: (row.household_id as string | null) ?? null,
       code: row.code as string,
       name: (row.name as string | null) ?? null,
       description: (row.description as string | null) ?? null,
-      type: row.type as SymbolType,
+      type: row.type as AssetSymbolType,
       primaryConversionFiat: (row.primary_conversion_fiat as string | null) ?? null,
       isActive: row.is_active as boolean,
       fetchConfig: (row.fetch_config as Record<string, unknown> | null) ?? null,
@@ -66,30 +66,30 @@ export default async function RatesSymbolsPage() {
     }
   }
 
-  const globalSymbols = (globalRaw ?? []).map((r) => mapSymbol(r as unknown as Record<string, unknown>))
-  const householdSymbols = (householdRaw ?? []).map((r) => mapSymbol(r as unknown as Record<string, unknown>))
-  const fiatSymbols = [...globalSymbols, ...householdSymbols].filter(
+  const globalAssetSymbols = (globalRaw ?? []).map((r) => mapAssetSymbol(r as unknown as Record<string, unknown>))
+  const householdAssetSymbols = (householdRaw ?? []).map((r) => mapAssetSymbol(r as unknown as Record<string, unknown>))
+  const fiatAssetSymbols = [...globalAssetSymbols, ...householdAssetSymbols].filter(
     (s) => s.type === 'fiat_currency' && s.isActive
   )
 
   return (
-    <AppShell title="Manage Symbols" displayName={displayName}>
+    <AppShell title="Manage AssetSymbols" displayName={displayName}>
       <div className="max-w-2xl space-y-6">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--color-fg-primary)' }}>
-            Symbols
+            AssetSymbols
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--color-fg-secondary)' }}>
             Manage the symbols tracked in your household portfolio.
           </p>
         </div>
 
-        <SymbolsManager
+        <AssetSymbolsManager
           householdId={householdId}
           isManager={isManager}
-          globalSymbols={globalSymbols}
-          householdSymbols={householdSymbols}
-          fiatSymbols={fiatSymbols}
+          globalAssetSymbols={globalAssetSymbols}
+          householdAssetSymbols={householdAssetSymbols}
+          fiatAssetSymbols={fiatAssetSymbols}
         />
       </div>
     </AppShell>

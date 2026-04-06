@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createServerClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { AppShell } from '@/components/shared/app-shell'
 import { AccountsPageClient } from '@/components/accounts/accounts-page-client'
-import type { Symbol, SymbolType, DisplayCurrency } from '@/lib/types/domain'
+import type { AssetSymbol, AssetSymbolType, DisplayCurrency } from '@/lib/types/domain'
 import type { AssetWithRate, AccountRow } from '@/components/accounts/account-dialogs'
 
 export const dynamic = 'force-dynamic'
@@ -59,14 +59,14 @@ export default async function AccountsPage({
     .select('id, household_id, account_id, symbol_id, amount, created_at, updated_at, symbols(*)')
     .eq('household_id', householdId)
 
-  function mapSymbol(row: Record<string, unknown>): Symbol {
+  function mapAssetSymbol(row: Record<string, unknown>): AssetSymbol {
     return {
       id: row.id as string,
       householdId: (row.household_id as string | null) ?? null,
       code: row.code as string,
       name: (row.name as string | null) ?? null,
       description: (row.description as string | null) ?? null,
-      type: row.type as SymbolType,
+      type: row.type as AssetSymbolType,
       primaryConversionFiat: (row.primary_conversion_fiat as string | null) ?? null,
       isActive: row.is_active as boolean,
       fetchConfig: (row.fetch_config as Record<string, unknown> | null) ?? null,
@@ -95,55 +95,55 @@ export default async function AccountsPage({
   let eurRate: number | null = null
 
   if (symbolIds.length > 0) {
-    const { data: fxSymbols } = await supabase
+    const { data: fxAssetSymbols } = await supabase
       .from('symbols')
       .select('id, code')
       .in('code', ['USD', 'EUR'])
       .is('household_id', null)
 
-    const usdSymbolId = (fxSymbols ?? []).find((s) => s.code === 'USD')?.id ?? null
-    const eurSymbolId = (fxSymbols ?? []).find((s) => s.code === 'EUR')?.id ?? null
+    const usdAssetSymbolId = (fxAssetSymbols ?? []).find((s) => s.code === 'USD')?.id ?? null
+    const eurAssetSymbolId = (fxAssetSymbols ?? []).find((s) => s.code === 'EUR')?.id ?? null
 
-    const allSymbolIds = [
+    const allAssetSymbolIds = [
       ...new Set([
         ...symbolIds,
-        ...[usdSymbolId, eurSymbolId].filter(Boolean) as string[],
+        ...[usdAssetSymbolId, eurAssetSymbolId].filter(Boolean) as string[],
       ]),
     ]
 
     const { data: rates } = await supabase
       .from('exchange_rates')
       .select('symbol_id, rate, fetched_at')
-      .in('symbol_id', allSymbolIds)
+      .in('symbol_id', allAssetSymbolIds)
       .order('fetched_at', { ascending: false })
 
     const seen = new Set<string>()
     for (const r of (rates ?? []) as { symbol_id: string; rate: number; fetched_at: string }[]) {
       if (!seen.has(r.symbol_id)) {
         rateMap.set(r.symbol_id, { rate: Number(r.rate), fetchedAt: r.fetched_at })
-        if (r.symbol_id === usdSymbolId) usdRate = Number(r.rate)
-        if (r.symbol_id === eurSymbolId) eurRate = Number(r.rate)
+        if (r.symbol_id === usdAssetSymbolId) usdRate = Number(r.rate)
+        if (r.symbol_id === eurAssetSymbolId) eurRate = Number(r.rate)
         seen.add(r.symbol_id)
       }
     }
   }
 
   // Fetch all available symbols for the asset picker
-  const { data: globalSymbolsRaw } = await supabase
+  const { data: globalAssetSymbolsRaw } = await supabase
     .from('symbols')
     .select('*')
     .is('household_id', null)
     .order('code')
 
-  const { data: householdSymbolsRaw } = await supabase
+  const { data: householdAssetSymbolsRaw } = await supabase
     .from('symbols')
     .select('*')
     .eq('household_id', householdId)
     .order('code')
 
-  const allSymbols: Symbol[] = [
-    ...(globalSymbolsRaw ?? []).map((r) => mapSymbol(r as unknown as Record<string, unknown>)),
-    ...(householdSymbolsRaw ?? []).map((r) => mapSymbol(r as unknown as Record<string, unknown>)),
+  const allAssetSymbols: AssetSymbol[] = [
+    ...(globalAssetSymbolsRaw ?? []).map((r) => mapAssetSymbol(r as unknown as Record<string, unknown>)),
+    ...(householdAssetSymbolsRaw ?? []).map((r) => mapAssetSymbol(r as unknown as Record<string, unknown>)),
   ]
 
   // Compute current value per asset
@@ -176,7 +176,7 @@ export default async function AccountsPage({
 
   for (const rawAsset of assetList) {
     const symbolRaw = rawAsset.symbols
-    const sym = mapSymbol(symbolRaw)
+    const sym = mapAssetSymbol(symbolRaw)
     const amount = Number(rawAsset.amount)
     const rateEntry = rateMap.get(rawAsset.symbol_id)
     const { currentValue } = computeValue(rawAsset.symbol_id, amount, sym.primaryConversionFiat)
@@ -246,7 +246,7 @@ export default async function AccountsPage({
           currentUserId={user.id}
           role={role}
           accounts={accounts}
-          symbols={allSymbols}
+          symbols={allAssetSymbols}
           selectedAccountId={selectedAccountId}
           displayCurrency={displayCurrency}
         />

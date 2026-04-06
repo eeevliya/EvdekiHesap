@@ -20,10 +20,10 @@ import {
 } from '@/components/ui/select'
 import { createAccount, updateAccount, deleteAccount } from '@/lib/actions/accounts'
 import { createAsset, updateAssetAmount, deleteAsset } from '@/lib/actions/assets'
-import type { Asset, Symbol } from '@/lib/types/domain'
+import type { Asset, AssetSymbol } from '@/lib/types/domain'
 
 export interface AssetWithRate extends Asset {
-  symbol: Symbol
+  symbol: AssetSymbol
   currentValue: number | null
   lastRate: number | null
   rateFetchedAt: string | null
@@ -62,7 +62,7 @@ interface AccountDialogsProps {
   currentUserId: string
   role: 'manager' | 'editor' | 'viewer'
   accounts: AccountRow[]
-  symbols: Symbol[]
+  symbols: AssetSymbol[]
   // Create account
   showCreateAccount: boolean
   onCreateClose: () => void
@@ -73,7 +73,7 @@ interface AccountDialogsProps {
   addingAssetToAccountId: string | null
   onAddAssetClose: () => void
   // Edit asset
-  editingAsset: (Asset & { symbol: Symbol }) | null
+  editingAsset: (Asset & { symbol: AssetSymbol }) | null
   onEditAssetClose: () => void
 }
 

@@ -43,7 +43,7 @@ import { fetchStockPrice } from './stocks'
 import { fetchCryptoPrice } from './crypto'
 import { fetchGoldPrices, GOLD_SYMBOL_NAMES } from './gold'
 
-interface Symbol {
+interface PriceFetchSymbol {
   id: string
   code: string
   type: string
@@ -120,7 +120,7 @@ function isWithinWindow(type: string): boolean {
 /** Write one exchange_rate row and one price_fetch_log row for a successful fetch. */
 async function writeSuccess(
   supabase: ReturnType<typeof createServiceRoleClient>,
-  symbol: Symbol,
+  symbol: PriceFetchSymbol,
   rate: number,
   source: string
 ): Promise<void> {
@@ -143,7 +143,7 @@ async function writeSuccess(
 /** Write a price_fetch_log error row (no exchange_rates row — retain last successful rate). */
 async function writeError(
   supabase: ReturnType<typeof createServiceRoleClient>,
-  symbol: Symbol,
+  symbol: PriceFetchSymbol,
   message: string
 ): Promise<void> {
   await supabase.from('price_fetch_log').insert({
@@ -157,7 +157,7 @@ async function writeError(
 /** Write a price_fetch_log skipped row. */
 async function writeSkipped(
   supabase: ReturnType<typeof createServiceRoleClient>,
-  symbol: Symbol,
+  symbol: PriceFetchSymbol,
   message: string
 ): Promise<void> {
   await supabase.from('price_fetch_log').insert({
@@ -180,7 +180,7 @@ async function writeSkipped(
  */
 async function goldDailyLimitReached(
   supabase: ReturnType<typeof createServiceRoleClient>,
-  goldSymbols: Symbol[]
+  goldSymbols: PriceFetchSymbol[]
 ): Promise<boolean> {
   const sentinel =
     goldSymbols.find((s) => s.code === 'ALTIN_GRAM') ?? goldSymbols[0]
@@ -224,7 +224,7 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
   if (symErr) throw new Error(`Failed to load symbols: ${symErr.message}`)
   if (!symbols || symbols.length === 0) return results
 
-  const active = symbols as Symbol[]
+  const active = symbols as PriceFetchSymbol[]
 
   // ── fiat_currency ──────────────────────────────────────────────────────────
   if (!cryptoOnly) {

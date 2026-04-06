@@ -21,11 +21,11 @@ import {
 } from '@/components/ui/select'
 import { createAccount, updateAccount, deleteAccount } from '@/lib/actions/accounts'
 import { createAsset, updateAssetAmount, deleteAsset } from '@/lib/actions/assets'
-import type { Account, Asset, Symbol } from '@/lib/types/domain'
+import type { Account, Asset, AssetSymbol } from '@/lib/types/domain'
 
 interface AccountRow extends Account {
   ownerName: string
-  assets: (Asset & { symbol: Symbol })[]
+  assets: (Asset & { symbol: AssetSymbol })[]
 }
 
 interface Props {
@@ -33,7 +33,7 @@ interface Props {
   currentUserId: string
   role: 'manager' | 'editor' | 'viewer'
   accounts: AccountRow[]
-  symbols: Symbol[]
+  symbols: AssetSymbol[]
 }
 
 // ─── Account form ─────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ export function AccountsManager({ householdId, currentUserId, role, accounts, sy
 
   // Asset dialogs
   const [addingAssetToAccountId, setAddingAssetToAccountId] = useState<string | null>(null)
-  const [editingAsset, setEditingAsset] = useState<(Asset & { symbol: Symbol }) | null>(null)
+  const [editingAsset, setEditingAsset] = useState<(Asset & { symbol: AssetSymbol }) | null>(null)
   const [assetForm, setAssetForm] = useState<AssetFormState>(emptyAssetForm)
 
   const canMutate = role === 'manager' || role === 'editor'
@@ -155,7 +155,7 @@ export function AccountsManager({ householdId, currentUserId, role, accounts, sy
     setAddingAssetToAccountId(accountId)
   }
 
-  function openEditAsset(asset: Asset & { symbol: Symbol }) {
+  function openEditAsset(asset: Asset & { symbol: AssetSymbol }) {
     setAssetForm({ symbolId: asset.symbolId, amount: String(asset.amount) })
     setError(null)
     setEditingAsset(asset)
@@ -204,7 +204,7 @@ export function AccountsManager({ householdId, currentUserId, role, accounts, sy
     })
   }
 
-  function handleDeleteAsset(asset: Asset & { symbol: Symbol }) {
+  function handleDeleteAsset(asset: Asset & { symbol: AssetSymbol }) {
     if (!confirm(`Remove ${asset.symbol.code} from this account?`)) return
     startTransition(async () => {
       const result = await deleteAsset(asset.id)

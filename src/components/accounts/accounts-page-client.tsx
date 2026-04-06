@@ -12,7 +12,7 @@ import { formatCurrency, formatPct } from '@/lib/utils/format'
 import { deleteAccount } from '@/lib/actions/accounts'
 import { deleteAsset } from '@/lib/actions/assets'
 import { AccountDialogs } from './account-dialogs'
-import type { DisplayCurrency } from '@/lib/types/domain'
+import type { AssetSymbol, DisplayCurrency } from '@/lib/types/domain'
 import type { AccountRow, AssetWithRate } from './account-dialogs'
 
 interface AccountsPageClientProps {
@@ -20,7 +20,7 @@ interface AccountsPageClientProps {
   currentUserId: string
   role: 'manager' | 'editor' | 'viewer'
   accounts: AccountRow[]
-  symbols: Symbol[]
+  symbols: AssetSymbol[]
   selectedAccountId: string | null
   displayCurrency: DisplayCurrency
 }

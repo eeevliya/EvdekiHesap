@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createSymbol, updateSymbol, deleteSymbol } from '@/lib/actions/symbols'
-import type { Symbol, SymbolType } from '@/lib/types/domain'
+import type { AssetSymbol, SymbolType } from '@/lib/types/domain'
 
 const SYMBOL_TYPE_LABELS: Record<SymbolType, string> = {
   fiat_currency: 'Fiat Currency',
@@ -34,9 +34,9 @@ const SYMBOL_TYPE_LABELS: Record<SymbolType, string> = {
 interface Props {
   householdId: string
   isManager: boolean
-  globalSymbols: Symbol[]
-  householdSymbols: Symbol[]
-  fiatSymbols: Symbol[]   // active fiat symbols for the conversion fiat dropdown
+  globalSymbols: AssetSymbol[]
+  householdSymbols: AssetSymbol[]
+  fiatSymbols: AssetSymbol[]   // active fiat symbols for the conversion fiat dropdown
 }
 
 interface SymbolFormState {
@@ -58,7 +58,7 @@ const emptyForm: SymbolFormState = {
 export function SymbolsManager({ householdId, isManager, globalSymbols, householdSymbols, fiatSymbols }: Props) {
   const [isPending, startTransition] = useTransition()
   const [showCreate, setShowCreate] = useState(false)
-  const [editingSymbol, setEditingSymbol] = useState<Symbol | null>(null)
+  const [editingSymbol, setEditingSymbol] = useState<AssetSymbol | null>(null)
   const [form, setForm] = useState<SymbolFormState>(emptyForm)
   const [error, setError] = useState<string | null>(null)
 
@@ -68,7 +68,7 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
     setShowCreate(true)
   }
 
-  function openEdit(symbol: Symbol) {
+  function openEdit(symbol: AssetSymbol) {
     setForm({
       code: symbol.code,
       name: symbol.name ?? '',
@@ -118,13 +118,13 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
     })
   }
 
-  function handleToggleActive(symbol: Symbol) {
+  function handleToggleActive(symbol: AssetSymbol) {
     startTransition(async () => {
       await updateSymbol(symbol.id, { isActive: !symbol.isActive })
     })
   }
 
-  function handleDelete(symbol: Symbol) {
+  function handleDelete(symbol: AssetSymbol) {
     if (!confirm(`Delete symbol "${symbol.code}"? This cannot be undone.`)) return
     startTransition(async () => {
       const result = await deleteSymbol(symbol.id)

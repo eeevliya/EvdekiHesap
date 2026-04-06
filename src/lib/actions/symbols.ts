@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerClient } from '@/lib/supabase/server'
-import type { ActionResult, Symbol, SymbolType } from '@/lib/types/domain'
+import type { ActionResult, AssetSymbol, AssetSymbolType } from '@/lib/types/domain'
 
 async function getSessionUser() {
   const supabase = await createServerClient()
@@ -12,17 +12,17 @@ async function getSessionUser() {
   return { supabase, user }
 }
 
-export async function createSymbol(
+export async function createAssetSymbol(
   householdId: string,
   input: {
     code: string
     name?: string
     description?: string
-    type: SymbolType
+    type: AssetSymbolType
     primaryConversionFiat?: string
     fetchConfig?: Record<string, unknown>
   }
-): Promise<ActionResult<Symbol>> {
+): Promise<ActionResult<AssetSymbol>> {
   const { supabase, user } = await getSessionUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
@@ -63,7 +63,7 @@ export async function createSymbol(
       code: data.code,
       name: data.name,
       description: data.description,
-      type: data.type as SymbolType,
+      type: data.type as AssetSymbolType,
       primaryConversionFiat: data.primary_conversion_fiat,
       isActive: data.is_active,
       fetchConfig: data.fetch_config as Record<string, unknown> | null,
@@ -73,10 +73,10 @@ export async function createSymbol(
   }
 }
 
-export async function updateSymbol(
+export async function updateAssetSymbol(
   symbolId: string,
-  input: Partial<Pick<Symbol, 'name' | 'description' | 'isActive' | 'fetchConfig'>>
-): Promise<ActionResult<Symbol>> {
+  input: Partial<Pick<AssetSymbol, 'name' | 'description' | 'isActive' | 'fetchConfig'>>
+): Promise<ActionResult<AssetSymbol>> {
   const { supabase, user } = await getSessionUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
@@ -87,7 +87,7 @@ export async function updateSymbol(
     .eq('id', symbolId)
     .single()
 
-  if (!symbol) return { success: false, error: 'Symbol not found' }
+  if (!symbol) return { success: false, error: 'AssetSymbol not found' }
   if (!symbol.household_id) return { success: false, error: 'Global symbols cannot be modified' }
 
   const { data: membership } = await supabase
@@ -125,7 +125,7 @@ export async function updateSymbol(
       code: data.code,
       name: data.name,
       description: data.description,
-      type: data.type as SymbolType,
+      type: data.type as AssetSymbolType,
       primaryConversionFiat: data.primary_conversion_fiat,
       isActive: data.is_active,
       fetchConfig: data.fetch_config as Record<string, unknown> | null,
@@ -135,7 +135,7 @@ export async function updateSymbol(
   }
 }
 
-export async function deleteSymbol(symbolId: string): Promise<ActionResult> {
+export async function deleteAssetSymbol(symbolId: string): Promise<ActionResult> {
   const { supabase, user } = await getSessionUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
@@ -145,7 +145,7 @@ export async function deleteSymbol(symbolId: string): Promise<ActionResult> {
     .eq('id', symbolId)
     .single()
 
-  if (!symbol) return { success: false, error: 'Symbol not found' }
+  if (!symbol) return { success: false, error: 'AssetSymbol not found' }
   if (!symbol.household_id) return { success: false, error: 'Global symbols cannot be deleted' }
 
   const { data: membership } = await supabase

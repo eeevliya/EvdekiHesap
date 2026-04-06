@@ -3,7 +3,7 @@
 
 export type Role = 'manager' | 'editor' | 'viewer'
 
-export type SymbolType =
+export type AssetSymbolType =
   | 'fiat_currency'
   | 'stock'
   | 'tefas_fund'
@@ -68,13 +68,13 @@ export interface HouseholdInvite {
   createdAt: string
 }
 
-export interface Symbol {
+export interface AssetSymbol {
   id: string
   householdId: string | null // null = global symbol
   code: string
   name: string | null
   description: string | null
-  type: SymbolType
+  type: AssetSymbolType
   primaryConversionFiat: string | null
   isActive: boolean
   fetchConfig: Record<string, unknown> | null
@@ -107,12 +107,12 @@ export interface Account {
   name: string
   institution: string | null
   accountIdentifier: string | null
-  defaultSymbolId: string | null
+  defaultAssetSymbolId: string | null
   createdAt: string
   updatedAt: string
   // Joined fields
   ownerProfile?: Pick<Profile, 'id' | 'displayName'>
-  defaultSymbol?: Pick<Symbol, 'id' | 'code' | 'name'>
+  defaultAssetSymbol?: Pick<AssetSymbol, 'id' | 'code' | 'name'>
 }
 
 export interface Asset {
@@ -124,7 +124,7 @@ export interface Asset {
   createdAt: string
   updatedAt: string
   // Joined fields
-  symbol?: Symbol
+  symbol?: AssetSymbol
   currentRate?: ExchangeRate
 }
 
@@ -146,8 +146,8 @@ export interface Transaction {
   createdAt: string
   updatedAt: string
   // Joined fields (populated on list/detail queries)
-  toAsset?: Asset & { symbol: Symbol }
-  fromAsset?: Asset & { symbol: Symbol }
+  toAsset?: Asset & { symbol: AssetSymbol }
+  fromAsset?: Asset & { symbol: AssetSymbol }
 }
 
 export interface Snapshot {
@@ -179,7 +179,7 @@ export interface SnapshotAsset {
 
 /** Asset enriched with computed performance metrics */
 export interface AssetWithPerformance extends Asset {
-  symbol: Symbol
+  symbol: AssetSymbol
   currentValueInDisplayCurrency: number
   costBasisInDisplayCurrency: number | null
   gainLoss: number | null
@@ -195,7 +195,7 @@ export interface PortfolioSummary {
   change7d: number | null
   change30d: number | null
   changeAllTime: number | null
-  byType: Record<SymbolType, number>
+  byType: Record<AssetSymbolType, number>
   byCurrencyExposure: { try: number; usd: number; eur: number; other: number }
 }
 

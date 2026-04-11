@@ -238,18 +238,18 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
 
                           {/* Column 2 (three-col only): PCF rate + pair label */}
                           {showThreeCol && (
-                            <div className="text-right shrink-0 w-20">
+                            <div className="text-right shrink-0 w-28">
                               <p className="font-mono text-xs" style={{ color: 'var(--color-fg-secondary)' }}>
                                 {formatRate(sym.currentRate)}
                               </p>
-                              <p className="text-xs" style={{ color: 'var(--color-fg-disabled)' }}>
+                              <p className="text-xs truncate" style={{ color: 'var(--color-fg-disabled)' }}>
                                 {displayTicker(sym.code, sym.type)} / {sym.primaryConversionFiat}
                               </p>
                             </div>
                           )}
 
                           {/* Column 3 (or column 2 in two-col): HC rate + HC change */}
-                          <div className={`text-right shrink-0${showThreeCol ? ' ml-3' : ''}`}>
+                          <div className={`text-right shrink-0 w-28${showThreeCol ? ' ml-3' : ''}`}>
                             <p className="font-mono text-sm" style={{ color: 'var(--color-accent)' }}>
                               {formatRate(sym.hcRate)}
                             </p>

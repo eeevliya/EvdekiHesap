@@ -11,7 +11,7 @@ import { RateHistoricalChart } from './rate-historical-chart'
 import { ConvertModal } from './convert-modal'
 import { getSymbolDetail } from '@/lib/actions/rates'
 import { triggerPriceFetch } from '@/lib/actions/prices'
-import { formatPct, formatCurrency } from '@/lib/utils/format'
+import { formatPct, formatCurrency, currencySymbol } from '@/lib/utils/format'
 import type { SymbolRateRow, SymbolDetailData, RatesPageData } from '@/lib/actions/rates'
 import type { SymbolType } from '@/lib/types/domain'
 
@@ -253,7 +253,7 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
                           {/* Column 3 (or column 2 in two-col): HC rate + HC change */}
                           <div className={`text-right shrink-0 w-28${showThreeCol ? ' ml-3' : ''}`}>
                             <p className="font-mono text-sm" style={{ color: 'var(--color-accent)' }}>
-                              {formatRate(sym.hcRate)}
+                              {sym.hcRate == null ? '—' : `${currencySymbol(data.displayCurrency)}${formatRate(sym.hcRate)}`}
                             </p>
                             <p className="font-mono text-xs" style={{ color: hcChangeColor }}>
                               {hcPct == null ? '—' : formatPct(hcPct, { showSign: true })}

@@ -1,14 +1,11 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { Pencil, Trash2, Plus } from 'lucide-react'
+import { Pencil, Trash2, Plus, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { RelativeTime } from '@/components/shared/relative-time'
 import { EmptyState } from '@/components/shared/empty-state'
-import { Wallet } from 'lucide-react'
-import { formatCurrency, formatPct } from '@/lib/utils/format'
+import { formatCurrency } from '@/lib/utils/format'
 import { deleteAccount } from '@/lib/actions/accounts'
 import { deleteAsset } from '@/lib/actions/assets'
 import { AccountDialogs } from './account-dialogs'
@@ -34,8 +31,22 @@ export function AccountsPageClient({
   selectedAccountId,
   displayCurrency,
 }: AccountsPageClientProps) {
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
+
+  // Active account tracked in client state — initialized from URL searchParam.
+  // Account switching updates this state immediately and syncs the URL via
+  // window.history.replaceState so deep-links still work without triggering a
+  // full server re-render on every click.
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(
+    selectedAccountId ?? accounts[0]?.id ?? null
+  )
+
+  function handleSelectAccount(accountId: string) {
+    setActiveAccountId(accountId)
+    const url = new URL(window.location.href)
+    url.searchParams.set('account', accountId)
+    window.history.replaceState(null, '', url.toString())
+  }
 
   // Dialog state
   const [showCreateAccount, setShowCreateAccount] = useState(false)
@@ -65,7 +76,7 @@ export function AccountsPageClient({
     })
   }
 
-  const selectedAccount = accounts.find((a) => a.id === selectedAccountId) ?? accounts[0] ?? null
+  const selectedAccount = accounts.find((a) => a.id === activeAccountId) ?? accounts[0] ?? null
 
   return (
     <>
@@ -113,10 +124,13 @@ export function AccountsPageClient({
               accounts.map((account) => {
                 const isSelected = account.id === (selectedAccount?.id ?? null)
                 return (
-                  <Link
+                  <div
                     key={account.id}
-                    href={`/accounts?account=${account.id}`}
-                    className="group flex items-start justify-between px-4 py-3 mx-2 rounded-xl transition-colors min-h-[72px]"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleSelectAccount(account.id)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSelectAccount(account.id)}
+                    className="group flex items-start justify-between px-4 py-3 mx-2 rounded-xl transition-colors min-h-[72px] cursor-pointer"
                     style={{
                       background: isSelected ? 'var(--color-accent-subtle)' : undefined,
                       border: isSelected ? '1px solid var(--color-accent)' : '1px solid transparent',
@@ -160,7 +174,6 @@ export function AccountsPageClient({
                             className="p-1 rounded-lg transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
                             style={{ color: 'var(--color-fg-secondary)' }}
                             onClick={(e) => {
-                              e.preventDefault()
                               e.stopPropagation()
                               setEditingAccount(account)
                             }}
@@ -172,7 +185,6 @@ export function AccountsPageClient({
                             className="p-1 rounded-lg transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
                             style={{ color: 'var(--color-negative)' }}
                             onClick={(e) => {
-                              e.preventDefault()
                               e.stopPropagation()
                               handleDeleteAccount(account)
                             }}
@@ -184,7 +196,7 @@ export function AccountsPageClient({
                         </div>
                       )}
                     </div>
-                  </Link>
+                  </div>
                 )
               })
             )}

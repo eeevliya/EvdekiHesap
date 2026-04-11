@@ -23,7 +23,7 @@ export default async function AccountsPage({
 
   const { data: membership } = await supabase
     .from('household_members')
-    .select('household_id, role, households(display_currency)')
+    .select('household_id, role, households(display_currency), profiles(display_name)')
     .eq('user_id', user.id)
     .order('joined_at', { ascending: true })
     .limit(1)
@@ -35,29 +35,35 @@ export default async function AccountsPage({
   const role = membership.role as 'manager' | 'editor' | 'viewer'
   const household = membership.households as unknown as { display_currency: string } | null
   const displayCurrency = (household?.display_currency ?? 'TRY') as DisplayCurrency
-
-  // Display name for AppShell
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('display_name')
-    .eq('id', user.id)
-    .maybeSingle()
-  const displayName = profile?.display_name ?? user.email?.split('@')[0] ?? 'User'
+  // Display name comes from the profiles join on the membership row — no extra round trip.
+  const memberProfile = membership.profiles as unknown as { display_name: string } | null
+  const displayName = memberProfile?.display_name ?? user.email?.split('@')[0] ?? 'User'
 
   const serviceClient = createServiceRoleClient()
 
-  // Fetch accounts with owner display names
-  const { data: accountsRaw } = await serviceClient
-    .from('accounts')
-    .select('id, household_id, owner_id, name, institution, account_identifier, profiles(display_name)')
-    .eq('household_id', householdId)
-    .order('created_at', { ascending: true })
+  // Batch 1: fetch accounts, assets, and all symbols in parallel.
+  // Symbols (global + household) are merged into one query — this also gives us
+  // the USD/EUR symbol UUIDs we need for the rates query, eliminating a separate round trip.
+  const [accountsResult, assetsResult, symbolsResult] = await Promise.all([
+    serviceClient
+      .from('accounts')
+      .select('id, household_id, owner_id, name, institution, account_identifier, profiles(display_name)')
+      .eq('household_id', householdId)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('assets')
+      .select('id, household_id, account_id, symbol_id, amount, created_at, updated_at, symbols(*)')
+      .eq('household_id', householdId),
+    supabase
+      .from('symbols')
+      .select('*')
+      .or(`household_id.is.null,household_id.eq.${householdId}`)
+      .order('code'),
+  ])
 
-  // Fetch assets with symbols
-  const { data: assetsRaw } = await supabase
-    .from('assets')
-    .select('id, household_id, account_id, symbol_id, amount, created_at, updated_at, symbols(*)')
-    .eq('household_id', householdId)
+  const accountsRaw = accountsResult.data
+  const assetsRaw = assetsResult.data
+  const allSymbolsRaw = symbolsResult.data ?? []
 
   function mapAssetSymbol(row: Record<string, unknown>): AssetSymbol {
     return {
@@ -75,6 +81,14 @@ export default async function AccountsPage({
     }
   }
 
+  // Derive USD/EUR symbol UUIDs from the already-fetched symbols list.
+  const usdSymbolId = allSymbolsRaw.find((s) => s.code === 'USD' && !s.household_id)?.id ?? null
+  const eurSymbolId = allSymbolsRaw.find((s) => s.code === 'EUR' && !s.household_id)?.id ?? null
+
+  const allAssetSymbols: AssetSymbol[] = allSymbolsRaw.map(
+    (r) => mapAssetSymbol(r as unknown as Record<string, unknown>)
+  )
+
   // Gather all symbol IDs from assets
   const assetList = (assetsRaw ?? []) as unknown as Array<{
     id: string
@@ -87,64 +101,33 @@ export default async function AccountsPage({
     symbols: Record<string, unknown>
   }>
 
-  const symbolIds = [...new Set(assetList.map((a) => a.symbol_id))]
+  const assetSymbolIds = [...new Set(assetList.map((a) => a.symbol_id))]
 
-  // Fetch latest exchange rates for all symbols
+  // Batch 2: fetch latest rate per symbol using the latest_exchange_rates view.
+  // DISTINCT ON (symbol_id) is done at the DB level — no unbounded history transfer.
   const rateMap = new Map<string, { rate: number; fetchedAt: string }>()
   let usdRate: number | null = null
   let eurRate: number | null = null
 
-  if (symbolIds.length > 0) {
-    const { data: fxAssetSymbols } = await supabase
-      .from('symbols')
-      .select('id, code')
-      .in('code', ['USD', 'EUR'])
-      .is('household_id', null)
-
-    const usdAssetSymbolId = (fxAssetSymbols ?? []).find((s) => s.code === 'USD')?.id ?? null
-    const eurAssetSymbolId = (fxAssetSymbols ?? []).find((s) => s.code === 'EUR')?.id ?? null
-
-    const allAssetSymbolIds = [
+  if (assetSymbolIds.length > 0) {
+    const allSymbolIdsForRates = [
       ...new Set([
-        ...symbolIds,
-        ...[usdAssetSymbolId, eurAssetSymbolId].filter(Boolean) as string[],
+        ...assetSymbolIds,
+        ...[usdSymbolId, eurSymbolId].filter(Boolean) as string[],
       ]),
     ]
 
     const { data: rates } = await supabase
-      .from('exchange_rates')
+      .from('latest_exchange_rates')
       .select('symbol_id, rate, fetched_at')
-      .in('symbol_id', allAssetSymbolIds)
-      .order('fetched_at', { ascending: false })
+      .in('symbol_id', allSymbolIdsForRates)
 
-    const seen = new Set<string>()
     for (const r of (rates ?? []) as { symbol_id: string; rate: number; fetched_at: string }[]) {
-      if (!seen.has(r.symbol_id)) {
-        rateMap.set(r.symbol_id, { rate: Number(r.rate), fetchedAt: r.fetched_at })
-        if (r.symbol_id === usdAssetSymbolId) usdRate = Number(r.rate)
-        if (r.symbol_id === eurAssetSymbolId) eurRate = Number(r.rate)
-        seen.add(r.symbol_id)
-      }
+      rateMap.set(r.symbol_id, { rate: Number(r.rate), fetchedAt: r.fetched_at })
+      if (r.symbol_id === usdSymbolId) usdRate = Number(r.rate)
+      if (r.symbol_id === eurSymbolId) eurRate = Number(r.rate)
     }
   }
-
-  // Fetch all available symbols for the asset picker
-  const { data: globalAssetSymbolsRaw } = await supabase
-    .from('symbols')
-    .select('*')
-    .is('household_id', null)
-    .order('code')
-
-  const { data: householdAssetSymbolsRaw } = await supabase
-    .from('symbols')
-    .select('*')
-    .eq('household_id', householdId)
-    .order('code')
-
-  const allAssetSymbols: AssetSymbol[] = [
-    ...(globalAssetSymbolsRaw ?? []).map((r) => mapAssetSymbol(r as unknown as Record<string, unknown>)),
-    ...(householdAssetSymbolsRaw ?? []).map((r) => mapAssetSymbol(r as unknown as Record<string, unknown>)),
-  ]
 
   // Compute current value per asset
   function computeValue(symbolId: string, amount: number, primaryConversionFiat: string | null): {

@@ -906,15 +906,8 @@ function FilterMultiSelect({
 
 // ─── Mobile transaction card (§4.2) ──────────────────────────────────────────
 
-const FIAT_TYPES = new Set(['fiat_currency'])
-
-function isFiat(symbolCode: string | null | undefined, assetOptions: AssetRef[]): boolean {
-  if (!symbolCode) return false
-  const sym = assetOptions.find((a) => a.symbolCode === symbolCode)
-  if (!sym) return false
-  // We don't have symbolType in AssetRef, but fiat symbols are TRY/USD/EUR/GBP
-  const KNOWN_FIAT = new Set(['TRY', 'USD', 'EUR', 'GBP', 'CHF'])
-  return KNOWN_FIAT.has(sym.symbolCode)
+function isFiatLike(ref: AssetRef): boolean {
+  return ref.symbolType === 'fiat_currency' || ref.symbolType === 'stablecoin'
 }
 
 interface MobileTransactionCardProps {
@@ -942,9 +935,8 @@ function MobileTransactionCard({
     if (tx.type === 'trade') {
       const fromCode = tx.fromAsset?.symbolCode ?? null
       const toCode = tx.toAsset?.symbolCode ?? null
-      const KNOWN_FIAT = new Set(['TRY', 'USD', 'EUR', 'GBP', 'CHF'])
-      const fromIsFiat = fromCode ? KNOWN_FIAT.has(fromCode) : false
-      const toIsFiat = toCode ? KNOWN_FIAT.has(toCode) : false
+      const fromIsFiat = tx.fromAsset ? isFiatLike(tx.fromAsset) : false
+      const toIsFiat = tx.toAsset ? isFiatLike(tx.toAsset) : false
 
       if (!fromIsFiat && !toIsFiat) {
         // Both non-fiat: Trade badge

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase/server'
 import { TransactionForm } from './transaction-form'
-import type { TransactionType, FeeSide, EntryMode } from '@/lib/types/domain'
+import type { TransactionType, FeeSide, EntryMode, SymbolType } from '@/lib/types/domain'
 import type { AssetRef } from '../page'
 import type { InitialValues } from './transaction-form'
 
@@ -46,6 +46,7 @@ export default async function NewTransactionPage({
       symbolId: r.symbol_id as string,
       symbolCode: (sym?.code as string) ?? '',
       symbolName: (sym?.name as string | null) ?? null,
+      symbolType: ((sym?.type as SymbolType | null) ?? 'custom'),
       accountId: r.account_id as string,
       accountName: (acc?.name as string) ?? '',
     }

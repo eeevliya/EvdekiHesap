@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase/server'
 import { AppShell } from '@/components/shared/app-shell'
 import { TransactionsPageClient } from '@/components/transactions/transactions-page-client'
-import type { TransactionType, FeeSide, EntryMode, DisplayCurrency } from '@/lib/types/domain'
+import type { TransactionType, FeeSide, EntryMode, DisplayCurrency, SymbolType } from '@/lib/types/domain'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +11,7 @@ export interface AssetRef {
   symbolId: string
   symbolCode: string
   symbolName: string | null
+  symbolType: SymbolType
   accountId: string
   accountName: string
 }
@@ -45,6 +46,7 @@ function toAssetRef(raw: Record<string, unknown> | null | undefined): AssetRef |
     symbolId: raw.symbol_id as string,
     symbolCode: (symbol?.code as string) ?? '',
     symbolName: (symbol?.name as string | null) ?? null,
+    symbolType: ((symbol?.type as SymbolType | null) ?? 'custom'),
     accountId: raw.account_id as string,
     accountName: (account?.name as string) ?? '',
   }
@@ -116,6 +118,7 @@ export default async function TransactionsPage() {
       symbolId: r.symbol_id as string,
       symbolCode: (sym?.code as string) ?? '',
       symbolName: (sym?.name as string | null) ?? null,
+      symbolType: ((sym?.type as SymbolType | null) ?? 'custom'),
       accountId: r.account_id as string,
       accountName: (acc?.name as string) ?? '',
     }

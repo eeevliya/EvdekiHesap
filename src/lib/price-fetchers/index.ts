@@ -12,7 +12,8 @@
  *   fiat_currency      → fiat.ts  (TCMB EVDS + Frankfurter fallback)
  *   tefas_fund         → tefas.ts (TEFAS unofficial API, one call per fund)
  *   stock              → stocks.ts (yahoo-finance2, one call per ticker)
- *   cryptocurrency     → crypto.ts (Binance.US public REST, one call per pair)
+ *   cryptocurrency     → crypto.ts (Binance.US public REST, pair derived from code + primary_conversion_fiat)
+ *   stablecoin         → fixed rate 1.0 (no external API; written directly)
  *   physical_commodity → gold.ts  (CollectAPI, batched — all gold variants in one call)
  *   custom             → skipped (no automated fetch)
  *
@@ -49,6 +50,7 @@ interface PriceFetchSymbol {
   type: string
   household_id: string | null
   is_active: boolean
+  primary_conversion_fiat: string | null
 }
 
 interface DispatchResult {
@@ -208,7 +210,7 @@ async function goldDailyLimitReached(
 /**
  * Run price fetching for all active symbols.
  *
- * @param cryptoOnly  When true, only cryptocurrency symbols are fetched.
+ * @param cryptoOnly  When true, only cryptocurrency and stablecoin symbols are fetched.
  *                    Used by the cron job for the unconditional 24/7 crypto pass.
  */
 export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[]> {
@@ -218,7 +220,7 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
   // Load all active symbols
   const { data: symbols, error: symErr } = await supabase
     .from('symbols')
-    .select('id, code, type, household_id, is_active')
+    .select('id, code, type, household_id, is_active, primary_conversion_fiat')
     .eq('is_active', true)
 
   if (symErr) throw new Error(`Failed to load symbols: ${symErr.message}`)
@@ -302,11 +304,24 @@ export async function runPriceFetch(cryptoOnly = false): Promise<DispatchResult[
     }
   }
 
+  // ── stablecoin — fixed rate 1.0, no API call, always runs (24/7) ─────────
+  const stablecoinSymbols = active.filter((s) => s.type === 'stablecoin')
+  for (const sym of stablecoinSymbols) {
+    await writeSuccess(supabase, sym, 1.0, 'fixed')
+    results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'success' })
+  }
+
   // ── cryptocurrency — always runs (24/7) ───────────────────────────────────
   const cryptoSymbols = active.filter((s) => s.type === 'cryptocurrency')
   for (const sym of cryptoSymbols) {
+    if (!sym.primary_conversion_fiat) {
+      const msg = 'primary_conversion_fiat is required for cryptocurrency symbols'
+      await writeError(supabase, sym, msg)
+      results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'error', message: msg })
+      continue
+    }
     try {
-      const result = await fetchCryptoPrice(sym.code)
+      const result = await fetchCryptoPrice(sym.code, sym.primary_conversion_fiat)
       await writeSuccess(supabase, sym, result.price, result.source)
       results.push({ symbolId: sym.id, symbolCode: sym.code, status: 'success' })
     } catch (err) {

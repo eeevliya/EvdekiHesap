@@ -63,6 +63,25 @@ export async function createTransaction(
     return { success: false, error: 'Viewers cannot create transactions' }
   }
 
+  // Trade fiat-leg validation: at least one leg must be fiat_currency or stablecoin
+  if (input.type === 'trade' && input.toAssetId && input.fromAssetId) {
+    const { data: legs } = await supabase
+      .from('assets')
+      .select('id, symbols(type)')
+      .in('id', [input.toAssetId, input.fromAssetId])
+      .eq('household_id', householdId)
+
+    const symbolTypes = (legs ?? []).map(
+      (a) => ((a.symbols as { type: string } | null)?.type ?? '')
+    )
+    const hasFiatLeg = symbolTypes.some(
+      (t) => t === 'fiat_currency' || t === 'stablecoin'
+    )
+    if (!hasFiatLeg) {
+      return { success: false, error: 'A trade must have at least one fiat or stablecoin leg' }
+    }
+  }
+
   const { data: newId, error: rpcError } = await supabase.rpc('apply_transaction', {
     p_household_id: householdId,
     p_type: input.type,

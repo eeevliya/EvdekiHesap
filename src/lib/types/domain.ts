@@ -9,6 +9,7 @@ export type SymbolType =
   | 'tefas_fund'
   | 'physical_commodity'
   | 'cryptocurrency'
+  | 'stablecoin'
   | 'custom'
 
 export type TransactionType =

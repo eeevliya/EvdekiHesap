@@ -5,32 +5,52 @@
  *   - URL: https://www.binance.us/api/v3/ticker/price?symbol={pair}
  *   - Method: GET
  *   - Response: { "symbol": "BTCUSDT", "price": "68432.10" }
- *   - Underscores and spaces are stripped from the pair before the request
  *
- * The symbol code IS the Binance.US trading pair (e.g. "BTCUSDT", "ETHUSDT", "XRPUSDT").
+ * The symbol code is the asset identifier only (e.g. "BTC", "ETH", "PAXG").
+ * The Binance trading pair is derived at fetch time from code + primary_conversion_fiat
+ * using the PCF_TO_BINANCE_QUOTE mapping (e.g. BTC + USD → BTCUSDT).
  *
- * Note: Binance pairs are quoted against USDT or TRY depending on the pair.
  * The returned price is in the quote currency of the pair. The dispatcher
- * stores this as the `rate` and records the source currency via `primary_conversion_fiat`
- * on the symbol (e.g. BTC → USD, so a BTCUSDT pair gives USD price).
+ * stores this as the `rate` against `primary_conversion_fiat` on the symbol.
  */
 
 const BINANCE_BASE_URL = 'https://www.binance.us/api/v3/ticker/price'
 
+/**
+ * Maps primary_conversion_fiat codes to the Binance quote currency suffix.
+ * Add entries here as new pricing currencies are needed.
+ */
+const PCF_TO_BINANCE_QUOTE: Record<string, string> = {
+  USD: 'USDT',
+  TRY: 'TRY',
+  EUR: 'EUR',
+}
+
 export interface CryptoFetchResult {
-  /** Binance trading pair (formatted, e.g. "BTCUSDT") */
+  /** Binance trading pair used in the request (e.g. "BTCUSDT") */
   binancePair: string
   /** Price in the quote currency of the pair */
   price: number
   source: 'binance'
 }
 
-/** Fetch the current price for a single Binance.US trading pair. */
+/**
+ * Fetch the current price for a cryptocurrency symbol from Binance.US.
+ *
+ * @param assetCode             The asset identifier (e.g. "BTC", "PAXG")
+ * @param primaryConversionFiat The pricing fiat currency (e.g. "USD") — determines Binance quote suffix
+ */
 export async function fetchCryptoPrice(
-  binancePair: string
+  assetCode: string,
+  primaryConversionFiat: string
 ): Promise<CryptoFetchResult> {
-  // Strip underscores, spaces; uppercase — matches reference script behaviour
-  const formattedPair = binancePair.replace(/[_\s]/g, '').toUpperCase()
+  const quoteSuffix = PCF_TO_BINANCE_QUOTE[primaryConversionFiat.toUpperCase()]
+  if (!quoteSuffix) {
+    throw new Error(
+      `No Binance quote suffix defined for primary_conversion_fiat="${primaryConversionFiat}"`
+    )
+  }
+  const formattedPair = (assetCode.replace(/[_\s]/g, '').toUpperCase()) + quoteSuffix
   const url = `${BINANCE_BASE_URL}?symbol=${formattedPair}`
 
   const res = await fetch(url)

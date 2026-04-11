@@ -9,9 +9,12 @@ insert into symbols (code, name, type, primary_conversion_fiat, is_active, house
   ('EUR', 'Euro',            'fiat_currency', null,  true, null),
   ('GBP', 'British Pound',   'fiat_currency', null,  true, null),
 
-  -- Cryptocurrencies (priced in USD)
-  ('BTCUSDT', 'Bitcoin (USDT)',  'cryptocurrency', 'USD', true, null),
-  ('ETHUSDT', 'Ethereum (USDT)', 'cryptocurrency', 'USD', true, null),
+  -- Cryptocurrencies — code is asset identifier; primary_conversion_fiat is pricing currency
+  ('BTC',  'Bitcoin',     'cryptocurrency', 'USD', true, null),
+  ('ETH',  'Ethereum',    'cryptocurrency', 'USD', true, null),
+
+  -- Stablecoins — fixed 1:1 rate against primary_conversion_fiat; no API fetch
+  ('USDT', 'Tether USD',  'stablecoin',     'USD', true, null),
 
   -- Physical commodities — international (priced in USD)
   ('XAU', 'Gold (Troy oz)',  'physical_commodity', 'USD', true, null),

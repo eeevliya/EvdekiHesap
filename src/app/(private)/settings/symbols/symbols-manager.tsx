@@ -28,6 +28,7 @@ const SYMBOL_TYPE_LABELS: Record<SymbolType, string> = {
   tefas_fund: 'Tefas Fund',
   physical_commodity: 'Physical Commodity',
   cryptocurrency: 'Cryptocurrency',
+  stablecoin: 'Stablecoin',
   custom: 'Custom',
 }
 
@@ -412,7 +413,7 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
                 <Label>Code *</Label>
                 <Input
                   placeholder={
-                    form.type === 'cryptocurrency' ? 'e.g. XRPUSDT' :
+                    form.type === 'cryptocurrency' ? 'e.g. XRP' :
                     form.type === 'tefas_fund' ? 'e.g. OSD' :
                     'e.g. MYASSET'
                   }

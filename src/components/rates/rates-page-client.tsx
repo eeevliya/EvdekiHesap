@@ -15,6 +15,21 @@ import { formatPct, formatCurrency } from '@/lib/utils/format'
 import type { SymbolRateRow, SymbolDetailData, RatesPageData } from '@/lib/actions/rates'
 import type { SymbolType } from '@/lib/types/domain'
 
+// Stock codes are stored as full Yahoo Finance tickers (e.g. TTRAK.IS).
+// Strip the market suffix for display so users see just the base ticker.
+const STOCK_SUFFIXES = ['.IS', '.AS', '.DE', '.HK', '.L', '.MI', '.PA', '.T', '.TO', '.SW']
+
+function displayTicker(code: string, type: SymbolType): string {
+  if (type !== 'stock') return code
+  const upper = code.toUpperCase()
+  // Sort by length descending to match longest suffix first (e.g. .TO before .T)
+  const sorted = [...STOCK_SUFFIXES].sort((a, b) => b.length - a.length)
+  for (const s of sorted) {
+    if (upper.endsWith(s)) return code.slice(0, -s.length)
+  }
+  return code
+}
+
 const TYPE_LABELS: Record<SymbolType, string> = {
   fiat_currency: 'Fiat Currency',
   stock: 'Stock',
@@ -183,7 +198,7 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
                       // physical_commodity symbols (gold) use the name as primary label;
                       // other symbols use the ticker code as primary with name as subtitle.
                       const useNameAsPrimary = sym.type === 'physical_commodity' && !!sym.name
-                      const primaryLabel = useNameAsPrimary ? sym.name! : sym.code
+                      const primaryLabel = useNameAsPrimary ? sym.name! : displayTicker(sym.code, sym.type)
                       const subLabel = useNameAsPrimary ? null : sym.name
 
                       return (
@@ -340,7 +355,7 @@ function SymbolDetailPanel({ detail }: { detail: SymbolDetailData }) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold" style={{ color: 'var(--color-fg-primary)' }}>
-            {detail.type === 'physical_commodity' && detail.name ? detail.name : detail.code}
+            {detail.type === 'physical_commodity' && detail.name ? detail.name : displayTicker(detail.code, detail.type)}
           </h2>
           {detail.type !== 'physical_commodity' && detail.name && (
             <p className="text-sm mt-0.5" style={{ color: 'var(--color-fg-secondary)' }}>
@@ -382,7 +397,7 @@ function SymbolDetailPanel({ detail }: { detail: SymbolDetailData }) {
       {/* Assets section */}
       <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.5rem' }}>
         <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--color-fg-primary)' }}>
-          Your assets in {detail.code}
+          Your assets in {displayTicker(detail.code, detail.type)}
         </h3>
         {detail.assets.length === 0 ? (
           <p className="text-sm" style={{ color: 'var(--color-fg-secondary)' }}>
@@ -469,7 +484,7 @@ function MobileSymbolCard({ sym }: { sym: SymbolRateRow }) {
             return (
               <>
                 <p className="font-semibold text-sm" style={{ color: 'var(--color-fg-primary)' }}>
-                  {useNameAsPrimary ? sym.name : sym.code}
+                  {useNameAsPrimary ? sym.name : displayTicker(sym.code, sym.type)}
                 </p>
                 {!useNameAsPrimary && sym.name && (
                   <p className="text-xs" style={{ color: 'var(--color-fg-secondary)' }}>

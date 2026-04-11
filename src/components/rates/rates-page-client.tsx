@@ -243,7 +243,9 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
                                 {formatRate(sym.currentRate)}
                               </p>
                               <p className="text-xs truncate" style={{ color: 'var(--color-fg-disabled)' }}>
-                                {displayTicker(sym.code, sym.type)} / {sym.primaryConversionFiat}
+                                {sym.type === 'physical_commodity'
+                                  ? `${sym.primaryConversionFiat} / unit`
+                                  : `${displayTicker(sym.code, sym.type)} / ${sym.primaryConversionFiat}`}
                               </p>
                             </div>
                           )}

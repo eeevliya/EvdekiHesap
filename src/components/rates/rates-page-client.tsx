@@ -249,7 +249,7 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
                           )}
 
                           {/* Column 3 (or column 2 in two-col): HC rate + HC change */}
-                          <div className="text-right shrink-0">
+                          <div className={`text-right shrink-0${showThreeCol ? ' ml-3' : ''}`}>
                             <p className="font-mono text-sm" style={{ color: 'var(--color-accent)' }}>
                               {formatRate(sym.hcRate)}
                             </p>
@@ -506,16 +506,16 @@ function MobileSymbolCard({ sym }: { sym: SymbolRateRow }) {
         className="w-full flex items-center justify-between px-4 py-3 text-left min-h-[60px]"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 pr-2">
           {(() => {
             const useNameAsPrimary = sym.type === 'physical_commodity' && !!sym.name
             return (
               <>
-                <p className="font-semibold text-sm" style={{ color: 'var(--color-fg-primary)' }}>
+                <p className="font-semibold text-sm break-words" style={{ color: 'var(--color-fg-primary)' }}>
                   {useNameAsPrimary ? sym.name : displayTicker(sym.code, sym.type)}
                 </p>
                 {!useNameAsPrimary && sym.name && (
-                  <p className="text-xs" style={{ color: 'var(--color-fg-secondary)' }}>
+                  <p className="text-xs break-words" style={{ color: 'var(--color-fg-secondary)' }}>
                     {sym.name}
                   </p>
                 )}

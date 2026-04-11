@@ -14,6 +14,9 @@ export interface SymbolRateRow {
   currentRate: number | null
   fetchedAt: string | null
   change24hPct: number | null
+  primaryConversionFiat: string | null
+  hcRate: number | null
+  hcChange24hPct: number | null
 }
 
 export interface RatesPageData {
@@ -91,14 +94,14 @@ export async function getRatesPageData(): Promise<RatesPageData | null> {
 
   // All active symbols (global + household)
   const [{ data: globalSymbols }, { data: householdSymbols }] = await Promise.all([
-    supabase.from('symbols').select('id, code, name, type, is_active').is('household_id', null).order('code'),
-    supabase.from('symbols').select('id, code, name, type, is_active').eq('household_id', householdId).order('code'),
+    supabase.from('symbols').select('id, code, name, type, is_active, primary_conversion_fiat').is('household_id', null).order('code'),
+    supabase.from('symbols').select('id, code, name, type, is_active, primary_conversion_fiat').eq('household_id', householdId).order('code'),
   ])
 
   const allSymbols = [
     ...(globalSymbols ?? []),
     ...(householdSymbols ?? []),
-  ] as { id: string; code: string; name: string | null; type: string; is_active: boolean }[]
+  ] as { id: string; code: string; name: string | null; type: string; is_active: boolean; primary_conversion_fiat: string | null }[]
 
   const activeSymbolIds = allSymbols.filter((s) => s.is_active).map((s) => s.id)
 
@@ -107,6 +110,8 @@ export async function getRatesPageData(): Promise<RatesPageData | null> {
       symbols: allSymbols.map((s) => ({
         symbolId: s.id, code: s.code, name: s.name, type: s.type as SymbolType,
         isActive: s.is_active, currentRate: null, fetchedAt: null, change24hPct: null,
+        primaryConversionFiat: s.primary_conversion_fiat ?? null,
+        hcRate: null, hcChange24hPct: null,
       })),
       displayCurrency,
       householdId,
@@ -135,11 +140,56 @@ export async function getRatesPageData(): Promise<RatesPageData | null> {
     oldestBySymbol.set(r.symbol_id, r)
   }
 
+  // Build code → latest/oldest rate lookups for HC conversion
+  const codeToSymbolId = new Map<string, string>()
+  for (const s of allSymbols) codeToSymbolId.set(s.code, s.id)
+
+  function latestRateByCode(code: string): number | null {
+    const id = codeToSymbolId.get(code)
+    if (!id) return null
+    const r = latestBySymbol.get(id)
+    return r ? Number(r.rate) : null
+  }
+  function oldestRateByCode(code: string): number | null {
+    const id = codeToSymbolId.get(code)
+    if (!id) return null
+    const r = oldestBySymbol.get(id)
+    return r ? Number(r.rate) : null
+  }
+
+  // Convert a TRY-denominated value to HC
+  function tryToHc(tryValue: number | null, hcOldestTryRate?: number | null): number | null {
+    if (tryValue == null) return null
+    if (displayCurrency === 'TRY') return tryValue
+    const hcTryRate = hcOldestTryRate !== undefined ? hcOldestTryRate : latestRateByCode(displayCurrency)
+    if (!hcTryRate) return null
+    return tryValue / hcTryRate
+  }
+
   const symbols: SymbolRateRow[] = allSymbols.map((sym) => {
     const latest = latestBySymbol.get(sym.id)
     const oldest = oldestBySymbol.get(sym.id)
     const currentRate = latest ? Number(latest.rate) : null
     const oldRate = oldest && oldest.fetched_at !== latest?.fetched_at ? Number(oldest.rate) : null
+    const pcf = sym.primary_conversion_fiat ?? null
+
+    // Convert currentRate to TRY, then to HC
+    let rateInTry: number | null = null
+    let oldRateInTry: number | null = null
+    if (pcf != null) {
+      const pcfLatest = latestRateByCode(pcf)
+      const pcfOldest = oldestRateByCode(pcf)
+      rateInTry = currentRate != null && pcfLatest != null ? currentRate * pcfLatest : null
+      oldRateInTry = oldRate != null && pcfOldest != null ? oldRate * pcfOldest : null
+    } else {
+      rateInTry = currentRate
+      oldRateInTry = oldRate
+    }
+
+    const hcOldestTryRate = displayCurrency !== 'TRY' ? oldestRateByCode(displayCurrency) : null
+    const hcRate = tryToHc(rateInTry)
+    const oldHcRate = tryToHc(oldRateInTry, hcOldestTryRate)
+
     return {
       symbolId: sym.id,
       code: sym.code,
@@ -149,6 +199,9 @@ export async function getRatesPageData(): Promise<RatesPageData | null> {
       currentRate,
       fetchedAt: latest?.fetched_at ?? null,
       change24hPct: pctChange(oldRate, currentRate),
+      primaryConversionFiat: pcf,
+      hcRate,
+      hcChange24hPct: pctChange(oldHcRate, hcRate),
     }
   })
 

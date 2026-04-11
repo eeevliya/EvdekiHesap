@@ -36,11 +36,12 @@ const TYPE_LABELS: Record<SymbolType, string> = {
   tefas_fund: 'Tefas Fund',
   physical_commodity: 'Commodity',
   cryptocurrency: 'Crypto',
+  stablecoin: 'Stablecoin',
   custom: 'Custom',
 }
 
 const TYPE_ORDER: SymbolType[] = [
-  'fiat_currency', 'stock', 'tefas_fund', 'cryptocurrency', 'physical_commodity', 'custom',
+  'fiat_currency', 'stock', 'tefas_fund', 'cryptocurrency', 'stablecoin', 'physical_commodity', 'custom',
 ]
 
 function formatRate(rate: number | null): string {
@@ -187,14 +188,25 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
                       </span>
                     </button>
 
-                    {!collapsedTypes.has(type as SymbolType) && syms.map((sym) => {
+                    {!collapsedTypes.has(type as SymbolType) && syms
+                      // Fiat: hide the symbol that IS the household currency
+                      .filter((sym) => !(sym.type === 'fiat_currency' && sym.code === data.displayCurrency))
+                      .map((sym) => {
                       const isSelected = sym.symbolId === selectedId
-                      const pct = sym.change24hPct
-                      const changeColor = pct == null
+
+                      // Three-column: non-fiat symbols where PCF differs from HC
+                      const showThreeCol = sym.type !== 'fiat_currency'
+                        && sym.primaryConversionFiat != null
+                        && sym.primaryConversionFiat !== data.displayCurrency
+
+                      // Right column always shows HC rate + HC change
+                      const hcPct = sym.hcChange24hPct
+                      const hcChangeColor = hcPct == null
                         ? 'var(--color-fg-disabled)'
-                        : pct >= 0
+                        : hcPct >= 0
                         ? 'var(--color-positive)'
                         : 'var(--color-negative)'
+
                       // physical_commodity symbols (gold) use the name as primary label;
                       // other symbols use the ticker code as primary with name as subtitle.
                       const useNameAsPrimary = sym.type === 'physical_commodity' && !!sym.name
@@ -204,7 +216,7 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
                       return (
                         <button
                           key={sym.symbolId}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+                          className="w-full flex items-center gap-2 px-4 py-3 text-left transition-colors"
                           style={{
                             borderBottom: '1px solid var(--color-border)',
                             borderLeft: isSelected ? '3px solid var(--color-accent)' : '3px solid transparent',
@@ -212,6 +224,7 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
                           }}
                           onClick={() => loadDetail(sym.symbolId)}
                         >
+                          {/* Column 1: symbol info */}
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-semibold" style={{ color: 'var(--color-fg-primary)' }}>
                               {primaryLabel}
@@ -222,14 +235,29 @@ export function RatesPageClient({ data, initialSelectedId, isManager }: RatesPag
                               </p>
                             )}
                           </div>
+
+                          {/* Column 2 (three-col only): PCF rate + pair label */}
+                          {showThreeCol && (
+                            <div className="text-right shrink-0 w-20">
+                              <p className="font-mono text-xs" style={{ color: 'var(--color-fg-secondary)' }}>
+                                {formatRate(sym.currentRate)}
+                              </p>
+                              <p className="text-xs" style={{ color: 'var(--color-fg-disabled)' }}>
+                                {displayTicker(sym.code, sym.type)} / {sym.primaryConversionFiat}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Column 3 (or column 2 in two-col): HC rate + HC change */}
                           <div className="text-right shrink-0">
-                            <p className="font-mono text-sm" style={{ color: 'var(--color-fg-primary)' }}>
-                              {formatRate(sym.currentRate)}
+                            <p className="font-mono text-sm" style={{ color: 'var(--color-accent)' }}>
+                              {formatRate(sym.hcRate)}
                             </p>
-                            <p className="font-mono text-xs" style={{ color: changeColor }}>
-                              {pct == null ? '—' : formatPct(pct, { showSign: true })}
+                            <p className="font-mono text-xs" style={{ color: hcChangeColor }}>
+                              {hcPct == null ? '—' : formatPct(hcPct, { showSign: true })}
                             </p>
                           </div>
+
                           {sym.fetchedAt && (
                             <div className="shrink-0 hidden xl:block">
                               <RelativeTime isoString={sym.fetchedAt} />

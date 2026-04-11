@@ -41,6 +41,7 @@ interface PerformanceChartProps {
 
 export function PerformanceChart({ data, chartSymbols, displayCurrency, className }: PerformanceChartProps) {
   const [range, setRange] = useState<TimeRange>('1M')
+  const [tab, setTab] = useState<'gainloss' | 'networth'>('gainloss')
   const colorMap = symbolColorMap(chartSymbols)
 
   const filtered = useMemo(() => {
@@ -49,6 +50,15 @@ export function PerformanceChart({ data, chartSymbols, displayCurrency, classNam
     const points = data.filter((p) => new Date(p.date).getTime() >= cutoff)
     return points.length > 0 ? points : data.slice(-1)
   }, [data, range])
+
+  const glSymbols = useMemo(() =>
+    chartSymbols.filter((code) => filtered.some((p) => p.gainLossBySymbol[code] != null)),
+    [chartSymbols, filtered]
+  )
+  const glHasTotal = useMemo(() => filtered.some((p) => p.gainLoss != null), [filtered])
+
+  const legendSymbols = tab === 'gainloss' ? glSymbols : chartSymbols
+  const legendHasTotal = tab === 'gainloss' ? glHasTotal : true
 
   function formatTick(value: number) {
     const abs = Math.abs(value)
@@ -99,7 +109,7 @@ export function PerformanceChart({ data, chartSymbols, displayCurrency, classNam
         </div>
       </CardHeader>
 
-      <Tabs defaultValue="gainloss">
+      <Tabs defaultValue="gainloss" onValueChange={(v) => setTab(v as 'gainloss' | 'networth')}>
         <TabsList className="mb-4">
           <TabsTrigger value="gainloss">Gain/Loss</TabsTrigger>
           <TabsTrigger value="networth">Net Worth</TabsTrigger>
@@ -242,13 +252,15 @@ export function PerformanceChart({ data, chartSymbols, displayCurrency, classNam
       </Tabs>
 
       {/* Legend */}
-      {chartSymbols.length > 0 && (
+      {(legendHasTotal || legendSymbols.length > 0) && (
         <div className="mt-3 flex flex-wrap gap-3">
-          <div className="flex items-center gap-1.5">
-            <div className="size-2.5 rounded-full" style={{ background: 'var(--color-accent)' }} />
-            <span className="text-xs" style={{ color: 'var(--color-fg-secondary)' }}>Total</span>
-          </div>
-          {chartSymbols.map((code) => (
+          {legendHasTotal && (
+            <div className="flex items-center gap-1.5">
+              <div className="size-2.5 rounded-full" style={{ background: 'var(--color-accent)' }} />
+              <span className="text-xs" style={{ color: 'var(--color-fg-secondary)' }}>Total</span>
+            </div>
+          )}
+          {legendSymbols.map((code) => (
             <div key={code} className="flex items-center gap-1.5">
               <div className="size-2.5 rounded-full" style={{ background: colorMap[code] }} />
               <span className="text-xs" style={{ color: 'var(--color-fg-secondary)' }}>{code}</span>

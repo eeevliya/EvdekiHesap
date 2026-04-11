@@ -72,7 +72,7 @@ export async function createTransaction(
       .eq('household_id', householdId)
 
     const symbolTypes = (legs ?? []).map(
-      (a) => ((a.symbols as { type: string } | null)?.type ?? '')
+      (a) => ((a.symbols as { type: string }[] | null)?.[0]?.type ?? '')
     )
     const hasFiatLeg = symbolTypes.some(
       (t) => t === 'fiat_currency' || t === 'stablecoin'

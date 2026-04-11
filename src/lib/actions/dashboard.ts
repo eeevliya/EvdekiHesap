@@ -37,8 +37,8 @@ export interface ChartPoint {
   netWorth: number
   /** Per-symbol breakdown: symbolCode → value */
   bySymbol: Record<string, number>
-  /** Total gain/loss in display currency at that point (0 when null in DB) */
-  gainLoss: number
+  /** Total gain/loss in display currency at that point (null when no G/L data exists) */
+  gainLoss: number | null
   /** Per-symbol gain/loss: symbolCode → gain/loss amount (0 when null in DB) */
   gainLossBySymbol: Record<string, number>
 }
@@ -455,11 +455,11 @@ export async function getDashboardData(): Promise<DashboardData | null> {
       symbol: { code: string } | null
     }
 
-    function pickGainLoss(sa: SnapAssetMin, currency: typeof displayCurrency): number {
+    function pickGainLoss(sa: SnapAssetMin, currency: typeof displayCurrency): number | null {
       const raw = currency === 'USD' ? sa.gain_loss_usd
                 : currency === 'EUR' ? sa.gain_loss_eur
                 : sa.gain_loss_try
-      return raw != null ? Number(raw) : 0
+      return raw != null ? Number(raw) : null
     }
 
     const snapshotAssetMap = new Map<string, Map<string, number>>()
@@ -474,8 +474,10 @@ export async function getDashboardData(): Promise<DashboardData | null> {
       const existing = snapshotAssetMap.get(sa.snapshot_id)!.get(code) ?? 0
       snapshotAssetMap.get(sa.snapshot_id)!.set(code, existing + val)
       const gl = pickGainLoss(sa, displayCurrency)
-      const existingGl = snapshotGlMap.get(sa.snapshot_id)!.get(code) ?? 0
-      snapshotGlMap.get(sa.snapshot_id)!.set(code, existingGl + gl)
+      if (gl != null) {
+        const existingGl = snapshotGlMap.get(sa.snapshot_id)!.get(code) ?? 0
+        snapshotGlMap.get(sa.snapshot_id)!.set(code, existingGl + gl)
+      }
     }
 
     for (const s of sampledSnapshots) {
@@ -494,7 +496,8 @@ export async function getDashboardData(): Promise<DashboardData | null> {
           gainLossBySymbol[code] = gl
         }
       }
-      const gainLoss = Object.values(gainLossBySymbol).reduce((sum, v) => sum + v, 0)
+      const glValues = Object.values(gainLossBySymbol)
+      const gainLoss = glValues.length > 0 ? glValues.reduce((sum, v) => sum + v, 0) : null
       chartData.push({
         date: s.taken_at.slice(0, 10),
         netWorth: pickNetWorth(s, displayCurrency) ?? 0,

@@ -147,7 +147,6 @@ export function PerformanceChart({ data, chartSymbols, displayCurrency, classNam
                     stroke={colorMap[code]}
                     strokeWidth={1.5}
                     dot={false}
-                    connectNulls
                   />
                 ))}
                 <Line

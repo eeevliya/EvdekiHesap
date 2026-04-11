@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -97,23 +97,25 @@ export function AccountDialogs({
   const [accountForm, setAccountForm] = useState<AccountFormState>(emptyAccountForm)
   const [assetForm, setAssetForm] = useState<AssetFormState>(emptyAssetForm)
 
-  // Reset form when dialogs open
-  function openCreate() {
-    setAccountForm(emptyAccountForm)
-    setError(null)
-  }
+  // Reset create form when dialog opens (onOpenChange doesn't fire for externally-controlled open)
+  useEffect(() => {
+    if (showCreateAccount) {
+      setAccountForm(emptyAccountForm)
+      setError(null)
+    }
+  }, [showCreateAccount])
 
-  function openEdit(account: AccountRow) {
-    setAccountForm({
-      name: account.name,
-      institution: account.institution ?? '',
-      accountIdentifier: account.accountIdentifier ?? '',
-    })
-    setError(null)
-  }
-
-  // Sync form to current editingAccount when it changes
-  const prevEditRef = { id: editingAccount?.id }
+  // Sync edit form when editingAccount changes
+  useEffect(() => {
+    if (editingAccount) {
+      setAccountForm({
+        name: editingAccount.name,
+        institution: editingAccount.institution ?? '',
+        accountIdentifier: editingAccount.accountIdentifier ?? '',
+      })
+      setError(null)
+    }
+  }, [editingAccount])
 
   function handleCreateAccount() {
     if (!accountForm.name.trim()) { setError('Account name is required'); return }
@@ -184,10 +186,7 @@ export function AccountDialogs({
       {/* Create account */}
       <Dialog
         open={showCreateAccount}
-        onOpenChange={(open) => {
-          if (!open) onCreateClose()
-          else openCreate()
-        }}
+        onOpenChange={(open) => { if (!open) onCreateClose() }}
       >
         <DialogContent>
           <DialogHeader><DialogTitle>Add Account</DialogTitle></DialogHeader>
@@ -221,10 +220,7 @@ export function AccountDialogs({
       {/* Edit account */}
       <Dialog
         open={!!editingAccount}
-        onOpenChange={(open) => {
-          if (!open) onEditClose()
-          else if (editingAccount) openEdit(editingAccount)
-        }}
+        onOpenChange={(open) => { if (!open) onEditClose() }}
       >
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Account — {editingAccount?.name}</DialogTitle></DialogHeader>

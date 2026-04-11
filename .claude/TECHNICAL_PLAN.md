@@ -225,9 +225,10 @@ create table symbols (
                             'tefas_fund',
                             'physical_commodity',
                             'cryptocurrency',
+                            'stablecoin',
                             'custom'
                           )),
-  primary_conversion_fiat text,           -- null for fiat symbols themselves
+  primary_conversion_fiat text,           -- null for fiat symbols; required (NOT NULL) for cryptocurrency and stablecoin
   is_active               boolean not null default true,
   fetch_config            jsonb,          -- symbol-type-specific config; structure defined per fetcher
   created_at              timestamptz not null default now(),
@@ -600,6 +601,7 @@ export type SymbolType =
   | 'tefas_fund'
   | 'physical_commodity'
   | 'cryptocurrency'
+  | 'stablecoin'
   | 'custom';
 
 export type TransactionType =
@@ -922,11 +924,19 @@ Covers all BIST-listed stocks via the `.IS` suffix (e.g., `THYAO.IS`, `XU100.IS`
 
 ### 6.4 Cryptocurrency
 
-**Decision**: Binance Public REST API.
+**Decision**: Binance.US Public REST API. No authentication required.
 
-> **Implementation note**: The PM has existing JS code for this fetcher. When Slice 5 reaches crypto price fetching, **stop and wait for the PM to provide the script** before implementing `src/lib/price-fetchers/crypto.ts`.
+The symbol `code` is the asset identifier only (e.g. `BTC`, `ETH`, `PAXG`). The Binance trading pair is derived at fetch time by concatenating `code` with the quote suffix mapped from `primary_conversion_fiat`:
 
-No authentication required for public price endpoints. Symbol pair (e.g., `BTCUSDT`) goes in `fetch_config.binancePair`.
+| primary_conversion_fiat | Binance quote suffix | Example pair |
+|---|---|---|
+| `USD` | `USDT` | `BTC` → `BTCUSDT` |
+| `TRY` | `TRY` | `BTC` → `BTCTRY` |
+| `EUR` | `EUR` | `BTC` → `BTCEUR` |
+
+`primary_conversion_fiat` is **required** (NOT NULL) for all `cryptocurrency` symbols. `fetch_config` is not used for crypto — the pair is fully derived from `code` + `primary_conversion_fiat`.
+
+**Stablecoins** (type `stablecoin`) have a fixed rate of 1.0 against their `primary_conversion_fiat`. No API call is made; the fetcher writes `rate = 1.0, source = 'fixed'` directly. `primary_conversion_fiat` is also required (NOT NULL) for stablecoins.
 
 ---
 
@@ -952,6 +962,7 @@ The following symbols are seeded in `seed.sql` as global symbols (`household_id 
 | `GBP` | British Pound | fiat_currency | null |
 | `BTC` | Bitcoin | cryptocurrency | USD |
 | `ETH` | Ethereum | cryptocurrency | USD |
+| `USDT` | Tether USD | stablecoin | USD |
 | `XAU` | Gold (Troy oz) | physical_commodity | USD |
 | `XAG` | Silver (Troy oz) | physical_commodity | USD |
 | `ALTIN_GRAM` | Gram Altın | physical_commodity | TRY |

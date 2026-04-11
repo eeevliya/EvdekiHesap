@@ -37,6 +37,10 @@ export interface ChartPoint {
   netWorth: number
   /** Per-symbol breakdown: symbolCode → value */
   bySymbol: Record<string, number>
+  /** Total gain/loss in display currency at that point (0 when null in DB) */
+  gainLoss: number
+  /** Per-symbol gain/loss: symbolCode → gain/loss amount (0 when null in DB) */
+  gainLossBySymbol: Record<string, number>
 }
 
 export interface AssetPerformanceRow {
@@ -437,7 +441,7 @@ export async function getDashboardData(): Promise<DashboardData | null> {
     const sampledIds = sampledSnapshots.map((s) => s.id)
     const { data: allSnapshotAssets } = await supabase
       .from('snapshot_assets')
-      .select('snapshot_id, value_try, value_usd, value_eur, symbol:symbols(code)')
+      .select('snapshot_id, value_try, value_usd, value_eur, gain_loss_try, gain_loss_usd, gain_loss_eur, symbol:symbols(code)')
       .in('snapshot_id', sampledIds)
 
     type SnapAssetMin = {
@@ -445,33 +449,58 @@ export async function getDashboardData(): Promise<DashboardData | null> {
       value_try: number | null
       value_usd: number | null
       value_eur: number | null
+      gain_loss_try: number | null
+      gain_loss_usd: number | null
+      gain_loss_eur: number | null
       symbol: { code: string } | null
     }
 
+    function pickGainLoss(sa: SnapAssetMin, currency: typeof displayCurrency): number {
+      const raw = currency === 'USD' ? sa.gain_loss_usd
+                : currency === 'EUR' ? sa.gain_loss_eur
+                : sa.gain_loss_try
+      return raw != null ? Number(raw) : 0
+    }
+
     const snapshotAssetMap = new Map<string, Map<string, number>>()
+    const snapshotGlMap = new Map<string, Map<string, number>>()
     for (const sa of ((allSnapshotAssets ?? []) as unknown as SnapAssetMin[])) {
       if (!snapshotAssetMap.has(sa.snapshot_id)) {
         snapshotAssetMap.set(sa.snapshot_id, new Map())
+        snapshotGlMap.set(sa.snapshot_id, new Map())
       }
       const code = sa.symbol?.code ?? 'Unknown'
       const val = pickAssetValue(sa, displayCurrency) ?? 0
       const existing = snapshotAssetMap.get(sa.snapshot_id)!.get(code) ?? 0
       snapshotAssetMap.get(sa.snapshot_id)!.set(code, existing + val)
+      const gl = pickGainLoss(sa, displayCurrency)
+      const existingGl = snapshotGlMap.get(sa.snapshot_id)!.get(code) ?? 0
+      snapshotGlMap.get(sa.snapshot_id)!.set(code, existingGl + gl)
     }
 
     for (const s of sampledSnapshots) {
       const bySymbol: Record<string, number> = {}
+      const gainLossBySymbol: Record<string, number> = {}
       const symbolMap = snapshotAssetMap.get(s.id)
+      const glSymbolMap = snapshotGlMap.get(s.id)
       if (symbolMap) {
         for (const [code, val] of symbolMap) {
           bySymbol[code] = val
           chartSymbolSet.add(code)
         }
       }
+      if (glSymbolMap) {
+        for (const [code, gl] of glSymbolMap) {
+          gainLossBySymbol[code] = gl
+        }
+      }
+      const gainLoss = Object.values(gainLossBySymbol).reduce((sum, v) => sum + v, 0)
       chartData.push({
         date: s.taken_at.slice(0, 10),
         netWorth: pickNetWorth(s, displayCurrency) ?? 0,
         bySymbol,
+        gainLoss,
+        gainLossBySymbol,
       })
     }
   }

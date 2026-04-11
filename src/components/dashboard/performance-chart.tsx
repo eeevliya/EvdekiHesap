@@ -142,7 +142,7 @@ export function PerformanceChart({ data, chartSymbols, displayCurrency, classNam
                   <Line
                     key={code}
                     type="monotone"
-                    dataKey={`bySymbol.${code}`}
+                    dataKey={`gainLossBySymbol.${code}`}
                     name={code}
                     stroke={colorMap[code]}
                     strokeWidth={1.5}
@@ -152,7 +152,7 @@ export function PerformanceChart({ data, chartSymbols, displayCurrency, classNam
                 ))}
                 <Line
                   type="monotone"
-                  dataKey="netWorth"
+                  dataKey="gainLoss"
                   name="Total"
                   stroke="oklch(0.80 0.16 195)"
                   strokeWidth={3}

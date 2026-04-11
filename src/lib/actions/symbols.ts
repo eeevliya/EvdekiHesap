@@ -75,7 +75,7 @@ export async function createAssetSymbol(
 
 export async function updateAssetSymbol(
   symbolId: string,
-  input: Partial<Pick<AssetSymbol, 'name' | 'description' | 'isActive' | 'fetchConfig'>>
+  input: Partial<Pick<AssetSymbol, 'code' | 'name' | 'description' | 'isActive' | 'fetchConfig' | 'primaryConversionFiat'>>
 ): Promise<ActionResult<AssetSymbol>> {
   const { supabase, user } = await getSessionUser()
   if (!user) return { success: false, error: 'Not authenticated' }
@@ -102,10 +102,12 @@ export async function updateAssetSymbol(
   }
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (input.code !== undefined) updates.code = input.code.trim().toUpperCase()
   if (input.name !== undefined) updates.name = input.name?.trim() ?? null
   if (input.description !== undefined) updates.description = input.description?.trim() ?? null
   if (input.isActive !== undefined) updates.is_active = input.isActive
   if (input.fetchConfig !== undefined) updates.fetch_config = input.fetchConfig
+  if (input.primaryConversionFiat !== undefined) updates.primary_conversion_fiat = input.primaryConversionFiat?.trim() ?? null
 
   const { data, error } = await supabase
     .from('symbols')

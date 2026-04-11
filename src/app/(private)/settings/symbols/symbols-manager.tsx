@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -31,20 +31,55 @@ const SYMBOL_TYPE_LABELS: Record<SymbolType, string> = {
   custom: 'Custom',
 }
 
+// Priority markets appear first; alphabetical below the divider
+const STOCK_MARKETS_PRIORITY = [
+  { label: 'BIST (Istanbul)', value: 'BIST', suffix: '.IS', currency: 'TRY' },
+  { label: 'NYSE', value: 'NYSE', suffix: '', currency: 'USD' },
+  { label: 'NASDAQ', value: 'NASDAQ', suffix: '', currency: 'USD' },
+]
+
+const STOCK_MARKETS_REST = [
+  { label: 'Amsterdam (AEX)', value: 'AEX', suffix: '.AS', currency: 'EUR' },
+  { label: 'Frankfurt (XETRA)', value: 'XETRA', suffix: '.DE', currency: 'EUR' },
+  { label: 'Hong Kong (HKEX)', value: 'HKEX', suffix: '.HK', currency: 'HKD' },
+  { label: 'London (LSE)', value: 'LSE', suffix: '.L', currency: 'GBP' },
+  { label: 'Milan (Borsa Italiana)', value: 'BIT', suffix: '.MI', currency: 'EUR' },
+  { label: 'Paris (Euronext)', value: 'EPA', suffix: '.PA', currency: 'EUR' },
+  { label: 'Tokyo (TSE)', value: 'TSE', suffix: '.T', currency: 'JPY' },
+  { label: 'Toronto (TSX)', value: 'TSX', suffix: '.TO', currency: 'CAD' },
+  { label: 'Zurich (SIX)', value: 'SIX', suffix: '.SW', currency: 'CHF' },
+]
+
+const ALL_STOCK_MARKETS = [...STOCK_MARKETS_PRIORITY, ...STOCK_MARKETS_REST]
+
+function inferMarket(fullCode: string): { market: string; baseCode: string } {
+  // Sort by suffix length descending to avoid partial matches (e.g. .T vs .TO)
+  const withSuffix = ALL_STOCK_MARKETS.filter((m) => m.suffix).sort(
+    (a, b) => b.suffix.length - a.suffix.length
+  )
+  for (const m of withSuffix) {
+    if (fullCode.toUpperCase().endsWith(m.suffix.toUpperCase())) {
+      return { market: m.value, baseCode: fullCode.slice(0, -m.suffix.length) }
+    }
+  }
+  return { market: '', baseCode: fullCode }
+}
+
 interface Props {
   householdId: string
   isManager: boolean
   globalSymbols: AssetSymbol[]
   householdSymbols: AssetSymbol[]
-  fiatSymbols: AssetSymbol[]   // active fiat symbols for the conversion fiat dropdown
+  fiatSymbols: AssetSymbol[]
 }
 
 interface SymbolFormState {
-  code: string
+  code: string               // base ticker for stock; full code for others
   name: string
   description: string
   type: SymbolType
   primaryConversionFiat: string
+  market: string             // ALL_STOCK_MARKETS.value, '' = not selected
 }
 
 const emptyForm: SymbolFormState = {
@@ -53,6 +88,7 @@ const emptyForm: SymbolFormState = {
   description: '',
   type: 'custom',
   primaryConversionFiat: '',
+  market: '',
 }
 
 export function SymbolsManager({ householdId, isManager, globalSymbols, householdSymbols, fiatSymbols }: Props) {
@@ -62,22 +98,56 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
   const [form, setForm] = useState<SymbolFormState>(emptyForm)
   const [error, setError] = useState<string | null>(null)
 
+  // Track whether primaryConversionFiat was auto-filled by market selection
+  // so we don't overwrite a user's manual choice on subsequent market changes
+  const autoFilledFiat = useRef(false)
+
   function openCreate() {
     setForm(emptyForm)
+    autoFilledFiat.current = false
     setError(null)
     setShowCreate(true)
   }
 
   function openEdit(symbol: AssetSymbol) {
+    const { market, baseCode } =
+      symbol.type === 'stock' ? inferMarket(symbol.code) : { market: '', baseCode: symbol.code }
     setForm({
-      code: symbol.code,
+      code: baseCode,
       name: symbol.name ?? '',
       description: symbol.description ?? '',
       type: symbol.type,
       primaryConversionFiat: symbol.primaryConversionFiat ?? '',
+      market,
     })
+    autoFilledFiat.current = false
     setError(null)
     setEditingSymbol(symbol)
+  }
+
+  function handleMarketChange(marketValue: string) {
+    const market = ALL_STOCK_MARKETS.find((m) => m.value === marketValue)
+    setForm((f) => {
+      const shouldUpdateFiat = autoFilledFiat.current || f.primaryConversionFiat === ''
+      if (market && shouldUpdateFiat) {
+        autoFilledFiat.current = true
+        return { ...f, market: marketValue, primaryConversionFiat: market.currency }
+      }
+      return { ...f, market: marketValue }
+    })
+  }
+
+  function handleFiatChange(value: string) {
+    autoFilledFiat.current = false
+    setForm((f) => ({ ...f, primaryConversionFiat: value === '__none__' ? '' : value }))
+  }
+
+  function buildStoredCode(baseCode: string, type: SymbolType, market: string): string {
+    if (type === 'stock') {
+      const m = ALL_STOCK_MARKETS.find((m) => m.value === market)
+      if (m) return baseCode.trim().toUpperCase() + m.suffix
+    }
+    return baseCode.trim()
   }
 
   function handleCreate() {
@@ -86,9 +156,10 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
       return
     }
     setError(null)
+    const storedCode = buildStoredCode(form.code, form.type, form.market)
     startTransition(async () => {
       const result = await createAssetSymbol(householdId, {
-        code: form.code,
+        code: storedCode,
         name: form.name || undefined,
         description: form.description || undefined,
         type: form.type,
@@ -104,11 +175,18 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
 
   function handleUpdate() {
     if (!editingSymbol) return
+    if (!form.code.trim()) {
+      setError('Code is required')
+      return
+    }
     setError(null)
+    const storedCode = buildStoredCode(form.code, editingSymbol.type, form.market)
     startTransition(async () => {
       const result = await updateAssetSymbol(editingSymbol.id, {
+        code: storedCode,
         name: form.name || null,
         description: form.description || null,
+        primaryConversionFiat: form.primaryConversionFiat || null,
       })
       if (!result.success) {
         setError(result.error)
@@ -130,6 +208,61 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
       const result = await deleteAssetSymbol(symbol.id)
       if (!result.success) alert(result.error)
     })
+  }
+
+  // Computed full ticker for the stock create/edit hint
+  function computedFullTicker(baseCode: string, market: string): string | null {
+    if (!baseCode.trim() && !market) return null
+    const m = ALL_STOCK_MARKETS.find((m) => m.value === market)
+    if (!m) return null
+    const base = baseCode.trim().toUpperCase()
+    return base ? base + m.suffix : null
+  }
+
+  // Shared Market + Code block for stock type
+  function renderStockFields(mode: 'create' | 'edit') {
+    const ticker = computedFullTicker(form.code, form.market)
+    return (
+      <>
+        <div className="space-y-1">
+          <Label>Market</Label>
+          <Select value={form.market} onValueChange={handleMarketChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select market…" />
+            </SelectTrigger>
+            <SelectContent>
+              {STOCK_MARKETS_PRIORITY.map((m) => (
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
+              ))}
+              <SelectItem value="__divider__" disabled>
+                ────────────────
+              </SelectItem>
+              {STOCK_MARKETS_REST.map((m) => (
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <Label>Ticker {mode === 'create' ? '(without suffix)' : ''} *</Label>
+          <Input
+            placeholder="e.g. TTRAK"
+            value={form.code}
+            onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
+          />
+          {ticker && (
+            <p className="text-xs text-muted-foreground">
+              Full ticker: <span className="font-mono font-medium">{ticker}</span>
+            </p>
+          )}
+        </div>
+      </>
+    )
   }
 
   return (
@@ -243,28 +376,16 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
             {error && <p className="text-sm text-destructive">{error}</p>}
 
             <div className="space-y-1">
-              <Label>Code *</Label>
-              <Input
-                placeholder={
-                  form.type === 'cryptocurrency' ? 'e.g. XRPUSDT' :
-                  form.type === 'stock' ? 'e.g. THYAO.IS or AAPL' :
-                  form.type === 'tefas_fund' ? 'e.g. OSD' :
-                  'e.g. MYASSET'
-                }
-                value={form.code}
-                onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
-              />
-            </div>
-
-            <div className="space-y-1">
               <Label>Type *</Label>
               <Select
                 value={form.type}
                 onValueChange={(v) => {
                   const type = v as SymbolType
+                  autoFilledFiat.current = false
                   setForm((f) => ({
                     ...f,
                     type,
+                    market: '',
                     primaryConversionFiat: type === 'fiat_currency' ? '' : f.primaryConversionFiat,
                   }))
                 }}
@@ -284,6 +405,23 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
               </Select>
             </div>
 
+            {form.type === 'stock' ? (
+              renderStockFields('create')
+            ) : (
+              <div className="space-y-1">
+                <Label>Code *</Label>
+                <Input
+                  placeholder={
+                    form.type === 'cryptocurrency' ? 'e.g. XRPUSDT' :
+                    form.type === 'tefas_fund' ? 'e.g. OSD' :
+                    'e.g. MYASSET'
+                  }
+                  value={form.code}
+                  onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
+                />
+              </div>
+            )}
+
             <div className="space-y-1">
               <Label>Name</Label>
               <Input
@@ -297,8 +435,8 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
               <div className="space-y-1">
                 <Label>Primary conversion fiat</Label>
                 <Select
-                  value={form.primaryConversionFiat}
-                  onValueChange={(v) => setForm((f) => ({ ...f, primaryConversionFiat: v === '__none__' ? '' : v }))}
+                  value={form.primaryConversionFiat || '__none__'}
+                  onValueChange={handleFiatChange}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select fiat currency…" />
@@ -345,11 +483,23 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
       <Dialog open={!!editingSymbol} onOpenChange={(open) => !open && setEditingSymbol(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Symbol — {editingSymbol?.code}</DialogTitle>
+            <DialogTitle>Edit Symbol</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             {error && <p className="text-sm text-destructive">{error}</p>}
+
+            {editingSymbol?.type === 'stock' ? (
+              renderStockFields('edit')
+            ) : (
+              <div className="space-y-1">
+                <Label>Code *</Label>
+                <Input
+                  value={form.code}
+                  onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
+                />
+              </div>
+            )}
 
             <div className="space-y-1">
               <Label>Name</Label>
@@ -368,6 +518,31 @@ export function SymbolsManager({ householdId, isManager, globalSymbols, househol
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               />
             </div>
+
+            {editingSymbol?.type !== 'fiat_currency' && (
+              <div className="space-y-1">
+                <Label>Primary conversion fiat</Label>
+                <Select
+                  value={form.primaryConversionFiat || '__none__'}
+                  onValueChange={handleFiatChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select fiat currency…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {fiatSymbols.map((s) => (
+                      <SelectItem key={s.id} value={s.code}>
+                        {s.code}{s.name ? ` — ${s.name}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  The fiat currency in which this symbol is priced.
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>

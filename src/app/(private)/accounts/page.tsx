@@ -44,7 +44,7 @@ export default async function AccountsPage({
   // Batch 1: fetch accounts, assets, and all symbols in parallel.
   // Symbols (global + household) are merged into one query — this also gives us
   // the USD/EUR symbol UUIDs we need for the rates query, eliminating a separate round trip.
-  const [accountsResult, assetsResult, symbolsResult] = await Promise.all([
+  const [accountsResult, assetsResult, symbolsResult, membersResult] = await Promise.all([
     serviceClient
       .from('accounts')
       .select('id, household_id, owner_id, name, institution, account_identifier, profiles(display_name)')
@@ -59,11 +59,19 @@ export default async function AccountsPage({
       .select('*')
       .or(`household_id.is.null,household_id.eq.${householdId}`)
       .order('code'),
+    serviceClient
+      .from('household_members')
+      .select('user_id, profiles(display_name)')
+      .eq('household_id', householdId),
   ])
 
   const accountsRaw = accountsResult.data
   const assetsRaw = assetsResult.data
   const allSymbolsRaw = symbolsResult.data ?? []
+  const members = (membersResult.data ?? []).map((m) => {
+    const r = m as unknown as { user_id: string; profiles: { display_name: string } | null }
+    return { userId: r.user_id, displayName: r.profiles?.display_name ?? r.user_id }
+  })
 
   function mapAssetSymbol(row: Record<string, unknown>): AssetSymbol {
     return {
@@ -230,6 +238,7 @@ export default async function AccountsPage({
           role={role}
           accounts={accounts}
           symbols={allAssetSymbols}
+          members={members}
           selectedAccountId={selectedAccountId}
           displayCurrency={displayCurrency}
         />

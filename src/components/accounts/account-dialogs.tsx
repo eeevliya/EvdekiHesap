@@ -42,13 +42,19 @@ export interface AccountRow {
   latestRateFetchedAt: string | null
 }
 
+export interface HouseholdMember {
+  userId: string
+  displayName: string
+}
+
 interface AccountFormState {
   name: string
   institution: string
   accountIdentifier: string
+  ownerId: string
 }
 
-const emptyAccountForm: AccountFormState = { name: '', institution: '', accountIdentifier: '' }
+const emptyAccountForm: AccountFormState = { name: '', institution: '', accountIdentifier: '', ownerId: '' }
 
 interface AssetFormState {
   symbolId: string
@@ -63,6 +69,7 @@ interface AccountDialogsProps {
   role: 'manager' | 'editor' | 'viewer'
   accounts: AccountRow[]
   symbols: AssetSymbol[]
+  members: HouseholdMember[]
   // Create account
   showCreateAccount: boolean
   onCreateClose: () => void
@@ -83,6 +90,7 @@ export function AccountDialogs({
   role,
   accounts,
   symbols,
+  members,
   showCreateAccount,
   onCreateClose,
   editingAccount,
@@ -112,6 +120,7 @@ export function AccountDialogs({
         name: editingAccount.name,
         institution: editingAccount.institution ?? '',
         accountIdentifier: editingAccount.accountIdentifier ?? '',
+        ownerId: editingAccount.ownerId,
       })
       setError(null)
     }
@@ -140,6 +149,7 @@ export function AccountDialogs({
         name: accountForm.name,
         institution: accountForm.institution || undefined,
         accountIdentifier: accountForm.accountIdentifier || undefined,
+        ownerId: role === 'manager' && accountForm.ownerId ? accountForm.ownerId : undefined,
       })
       if (!result.success) setError(result.error)
       else onEditClose()
@@ -241,6 +251,20 @@ export function AccountDialogs({
               <Input value={accountForm.accountIdentifier}
                 onChange={(e) => setAccountForm((f) => ({ ...f, accountIdentifier: e.target.value }))} />
             </div>
+            {role === 'manager' && members.length > 0 && (
+              <div className="space-y-1">
+                <Label>Owner</Label>
+                <Select value={accountForm.ownerId}
+                  onValueChange={(v) => setAccountForm((f) => ({ ...f, ownerId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select owner…" /></SelectTrigger>
+                  <SelectContent>
+                    {members.map((m) => (
+                      <SelectItem key={m.userId} value={m.userId}>{m.displayName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={onEditClose}>Cancel</Button>

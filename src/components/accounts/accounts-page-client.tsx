@@ -10,7 +10,7 @@ import { deleteAccount } from '@/lib/actions/accounts'
 import { deleteAsset } from '@/lib/actions/assets'
 import { AccountDialogs } from './account-dialogs'
 import type { AssetSymbol, DisplayCurrency } from '@/lib/types/domain'
-import type { AccountRow, AssetWithRate } from './account-dialogs'
+import type { AccountRow, AssetWithRate, HouseholdMember } from './account-dialogs'
 
 interface AccountsPageClientProps {
   householdId: string
@@ -18,6 +18,7 @@ interface AccountsPageClientProps {
   role: 'manager' | 'editor' | 'viewer'
   accounts: AccountRow[]
   symbols: AssetSymbol[]
+  members: HouseholdMember[]
   selectedAccountId: string | null
   displayCurrency: DisplayCurrency
 }
@@ -28,6 +29,7 @@ export function AccountsPageClient({
   role,
   accounts,
   symbols,
+  members,
   selectedAccountId,
   displayCurrency,
 }: AccountsPageClientProps) {
@@ -276,6 +278,7 @@ export function AccountsPageClient({
         symbols={symbols}
         showCreateAccount={showCreateAccount}
         onCreateClose={() => setShowCreateAccount(false)}
+        members={members}
         editingAccount={editingAccount}
         onEditClose={() => setEditingAccount(null)}
         addingAssetToAccountId={addingAssetToAccountId}
